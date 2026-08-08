@@ -12,6 +12,8 @@ import { FINDING_IDS, type AuditResult, type Finding, type Preset } from '@/type
  */
 
 const FLASHLOAN: Preset[] = ['aave-v3-flashloan-receiver'];
+const VAULT: Preset[] = ['aave-v3-erc4626-vault'];
+const BOTH: Preset[] = ['aave-v3-flashloan-receiver', 'aave-v3-erc4626-vault'];
 
 export const MOCK_FINDINGS: Finding[] = [
   {
@@ -71,8 +73,74 @@ export const MOCK_FINDINGS: Finding[] = [
         url: 'https://github.com/sanbir/evm-hack-registry',
       },
     ],
-    detect: [{ kind: 'absence', pattern: 'using SafeERC20', appliesTo: FLASHLOAN }],
+    detect: [{ kind: 'absence', pattern: 'using SafeERC20', appliesTo: BOTH }],
     remediation: 'Route every token interaction through SafeERC20.',
+  },
+  {
+    id: FINDING_IDS.VAULT_ATOKEN_BALANCE_DENOMINATOR,
+    title: 'aToken.balanceOf used as share-price denominator',
+    severity: 'critical',
+    vulnClasses: ['vuln/arithmetic/rounding', 'vuln/defi/fee-manipulation'],
+    summary:
+      'aTokens are freely transferable, so a donation moves the share price without touching Aave.',
+    detail:
+      'A vault whose totalAssets() reads its own aToken balance can be inflated by anyone willing to send it aTokens. Because no protocol interaction is required, the usual "attacker must first deposit" reasoning does not apply. Internal accounting plus a decimals offset closes both the donation and the empty-vault rounding attack.',
+    incidents: [
+      {
+        name: 'PoolTogether AaveV3YieldSource (Code4rena H-01)',
+        url: 'https://code4rena.com/reports/2022-06-poolTogether',
+      },
+      {
+        name: 'Thetanuts vault share rounding',
+        url: 'https://github.com/sanbir/evm-hack-registry',
+        pocFolder: '2026-04-ThetanutsVaultShareRounding_exp',
+      },
+    ],
+    detect: [
+      {
+        kind: 'regex',
+        pattern: 'return ATOKEN\\.balanceOf\\(address\\(this\\)\\)',
+        appliesTo: VAULT,
+      },
+      { kind: 'absence', pattern: '_decimalsOffset', appliesTo: VAULT },
+    ],
+    remediation:
+      'Track assets internally and override _decimalsOffset() to a non-zero value.',
+  },
+  {
+    id: FINDING_IDS.VAULT_WITHDRAW_RETURN_IGNORED,
+    title: 'Aave withdraw() return value ignored',
+    severity: 'high',
+    vulnClasses: ['vuln/logic/state-update', 'vuln/dependency/unchecked-return-value'],
+    summary:
+      'Aave returns the amount actually withdrawn, which is less than requested when the reserve is constrained.',
+    detail:
+      'A capped, frozen, paused or simply illiquid reserve pays out less than asked. Booking the requested figure credits assets that were never received, and the shortfall is discovered by whoever exits last.',
+    incidents: [
+      { name: 'Connext Amarok (Code4rena M-15)', url: 'https://code4rena.com/reports/2022-06-connext' },
+    ],
+    detect: [{ kind: 'absence', pattern: 'POOL.withdraw', appliesTo: VAULT }],
+    remediation: 'Use the uint256 that withdraw() returns, never the amount requested.',
+  },
+  {
+    id: FINDING_IDS.VAULT_RECEIVER_OWNER_CONFLATED,
+    title: 'ERC-4626 receiver and owner conflated',
+    severity: 'medium',
+    vulnClasses: ['vuln/access-control/missing-auth', 'vuln/logic/state-update'],
+    summary: 'redeem(shares, receiver, owner) burns from owner and pays receiver; mixing them steals.',
+    detail:
+      'Overriding the public entry points rather than the internal _deposit/_withdraw hooks is the usual way this gets broken, because the caller/receiver/owner split is re-implemented by hand.',
+    incidents: [
+      { name: 'Taichi ERC-4626 series, Pt.5', url: 'https://docs.openzeppelin.com/contracts/5.x/erc4626' },
+    ],
+    detect: [
+      {
+        kind: 'absence',
+        pattern: 'super\\._withdraw\\(caller, receiver, owner',
+        appliesTo: VAULT,
+      },
+    ],
+    remediation: 'Override _deposit/_withdraw and delegate to super with the arguments unchanged.',
   },
   {
     id: FINDING_IDS.FLASHLOAN_IDLE_FUNDS,
@@ -130,7 +198,7 @@ export const MOCK_FINDINGS: Finding[] = [
         url: 'https://github.com/sherlock-audit/2023-01-index-judging/issues/267',
       },
     ],
-    detect: [{ kind: 'absence', pattern: 'whenNotPaused', appliesTo: FLASHLOAN }],
+    detect: [{ kind: 'absence', pattern: 'whenNotPaused', appliesTo: BOTH }],
     remediation: 'Add a local pause and handle Aave reverts as an expected condition.',
   },
   {
@@ -147,7 +215,7 @@ export const MOCK_FINDINGS: Finding[] = [
         url: 'https://docs.morpho.org/overview/resources/audits/',
       },
     ],
-    detect: [{ kind: 'absence', pattern: 'function sweep', appliesTo: FLASHLOAN }],
+    detect: [{ kind: 'absence', pattern: 'function sweep', appliesTo: BOTH }],
     remediation: 'Add a gated sweep that cannot touch principal.',
   },
   {
@@ -162,7 +230,7 @@ export const MOCK_FINDINGS: Finding[] = [
       { name: 'Float Capital (Code4rena M-05)', url: 'https://code4rena.com/reports/2022-05-backd' },
       { name: 'Alchemix V3 (Immunefi #57812)', url: 'https://immunefi.com/bug-bounty/alchemix/' },
     ],
-    detect: [{ kind: 'absence', pattern: 'claimAllRewards', appliesTo: FLASHLOAN }],
+    detect: [{ kind: 'absence', pattern: 'claimAllRewards', appliesTo: BOTH }],
     remediation: 'Expose a gated claim that forwards aToken addresses to the RewardsController.',
   },
 ];

@@ -1,26 +1,30 @@
-import { buildFlashLoanReceiver } from '@/generator/aave/flashLoanReceiver';
+import { buildPreset } from '@/generator';
+import { MAINNET } from '@/generator/attacks/addresses';
+import { scaffoldFor } from '@/generator/attacks/scaffold';
 import {
   CONTRACT_NAME_RE,
   IMPORT_PATHS,
   SOLIDITY_PRAGMA,
   type FindingId,
   type GenerateOptions,
+  type Preset,
 } from '@/types';
+
+export { MAINNET };
 
 /**
  * Attack-test assembler (task A5).
  *
- * Takes Agent B's `fixtures/attack-snippets.json`, keeps only the snippets whose
- * finding ID the generated contract actually mitigates, substitutes placeholders,
- * and emits a Foundry fork test.
- *
- * The snippets are authored against the hardened contract, so a passing suite is
- * evidence the mitigations hold — not evidence the tests were written to pass.
+ * Keeps only the snippets whose finding ID the generated contract actually
+ * mitigates, substitutes placeholders, and emits a Foundry fork test. A snippet
+ * that survives filtering but leaves an unknown {{PLACEHOLDER}} behind is a hard
+ * error — a silently broken test is worse than no test.
  */
 
 export interface AttackSnippet {
   testName: string;
   title: string;
+  presets?: Preset[];
   incidents: { name: string; url: string; pocFolder?: string }[];
   comments?: string[];
   body: string[];
@@ -32,30 +36,6 @@ export interface AttackSnippetFile {
   snippets: Record<string, AttackSnippet>;
 }
 
-/** Aave v3 Ethereum mainnet, from @bgd-labs/aave-address-book. */
-export const MAINNET = {
-  POOL_ADDRESSES_PROVIDER: '0x2f39d218133AFaB8F2B819B1066c7E434Ad94E9e',
-  REWARDS_CONTROLLER: '0x8164Cc65827dcFe994AB23944CBC90e0aa80bFcb',
-  USDC: '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48',
-  aUSDC: '0x98C23E9d8f34FEFb1B7BD6a91B7FF122F4e16F5c',
-} as const;
-
-const INSTANCE = 'harness';
-
-/**
- * Maps a constructor argument name from the generated contract onto the expression
- * the test should pass. Reading the names off the ContractBuilder rather than
- * re-deriving them means the test cannot drift from the contract it deploys.
- */
-const CONSTRUCTOR_BINDINGS: Record<string, string> = {
-  addressesProvider: 'address(PROVIDER)',
-  asset_: 'ASSET',
-  initialOwner: 'owner',
-  defaultAdmin: 'owner',
-  operator: 'owner',
-  rewardsController: 'REWARDS_CONTROLLER',
-};
-
 export function assembleAttackTests(
   opts: GenerateOptions,
   file: AttackSnippetFile,
@@ -64,29 +44,24 @@ export function assembleAttackTests(
     throw new Error(`Refusing to interpolate an invalid contract name: ${opts.name}`);
   }
 
-  const { contract, appliedFindingIds } = buildFlashLoanReceiver(opts);
+  const { contract, appliedFindingIds } = buildPreset(opts);
   const applied = new Set<string>(appliedFindingIds);
+  const scaffold = scaffoldFor(opts);
 
   const chosen: [FindingId, AttackSnippet][] = [];
   const skipped: FindingId[] = [];
-  for (const [id, snippet] of Object.entries(file.snippets)) {
-    if (applied.has(id)) chosen.push([id as FindingId, snippet]);
-    else skipped.push(id as FindingId);
+  // A finding can carry more than one snippet, keyed '<FINDING_ID>#<variant>' —
+  // typically one per preset, since a vault and a flash-loan receiver mitigate the
+  // same finding in very different code.
+  for (const [key, snippet] of Object.entries(file.snippets)) {
+    const id = key.split('#')[0] as FindingId;
+    const presetOk = !snippet.presets || snippet.presets.includes(opts.preset);
+    if (presetOk && applied.has(id)) chosen.push([id, snippet]);
+    else skipped.push(id);
   }
 
-  const subs: Record<string, string> = {
-    '{{CONTRACT}}': INSTANCE,
-    '{{CONTRACT_TYPE}}': opts.name,
-    '{{POOL}}': 'POOL',
-    '{{ASSET}}': 'ASSET',
-    '{{ATOKEN}}': 'ATOKEN',
-    '{{PARAMS}}': '_defaultParams()',
-    '{{PARAMS_STRUCT}}': '_defaultFlashParams()',
-    '{{OWNER}}': 'owner',
-  };
-
   const ctorArgs = contract.constructorArgs.map((a) => {
-    const bound = CONSTRUCTOR_BINDINGS[a.name];
+    const bound = scaffold.bindings[a.name];
     if (!bound) throw new Error(`No test binding for constructor argument '${a.name}'`);
     return bound;
   });
@@ -106,10 +81,9 @@ export function assembleAttackTests(
     '/// @notice incident, cited in the comment above it. These run against real Aave',
     '/// @notice on a mainnet fork — not against a mock.',
     `contract ${opts.name}AttackTest is Test {`,
-    `    IPoolAddressesProvider internal constant PROVIDER =`,
+    '    IPoolAddressesProvider internal constant PROVIDER =',
     `        IPoolAddressesProvider(${MAINNET.POOL_ADDRESSES_PROVIDER});`,
-    `    address internal constant ASSET = ${opts.asset ?? MAINNET.USDC};`,
-    `    address internal constant ATOKEN = ${MAINNET.aUSDC};`,
+    ...scaffold.constants.map((l) => `    ${l}`),
   ];
 
   if (opts.claimRewards) {
@@ -118,9 +92,7 @@ export function assembleAttackTests(
 
   lines.push(
     '',
-    '    IPool internal POOL;',
-    `    ${opts.name} internal ${INSTANCE};`,
-    '    address internal owner;',
+    ...scaffold.state.map((l) => `    ${l}`),
     '',
     '    function setUp() public {',
     '        // No fork block is pinned yet: the Tenderly Virtual Environment forks at',
@@ -133,30 +105,20 @@ export function assembleAttackTests(
     '            vm.createSelectFork(vm.envString("MAINNET_RPC_URL"), forkBlock);',
     '        }',
     '',
-    '        // §9.1: resolve the Pool through the provider, never hardcode it.',
-    '        POOL = IPool(PROVIDER.getPool());',
-    '        owner = makeAddr("owner");',
-    `        ${INSTANCE} = new ${opts.name}(${ctorArgs.join(', ')});`,
+    ...scaffold.setUp.map((l) => `        ${l}`),
+    `        harness = new ${opts.name}(${ctorArgs.join(', ')});`,
     '    }',
     '',
-    '    /// @dev A valid, benign FlashParams. Attack tests deviate from this deliberately.',
-    `    function _defaultFlashParams() internal pure returns (${opts.name}.FlashParams memory) {`,
-    `        return ${opts.name}.FlashParams({`,
-    ...paramFields(opts).map((f, i, a) => `            ${f}${i === a.length - 1 ? '' : ','}`),
-    '        });',
-    '    }',
-    '',
-    '    function _defaultParams() internal pure returns (bytes memory) {',
-    '        return abi.encode(_defaultFlashParams());',
-    '    }',
+    ...scaffold.helpers.map((l) => (l === '' ? '' : `    ${l}`)),
   );
 
   for (const [id, snippet] of chosen) {
-    lines.push('', ...renderTest(id, snippet, subs));
+    lines.push('', ...renderTest(id, snippet, scaffold.subs));
   }
-
-  for (const snippet of chosen) {
-    if (snippet[1].helpers?.length) lines.push('', ...snippet[1].helpers.map((h) => `    ${h}`));
+  for (const [, snippet] of chosen) {
+    if (snippet.helpers?.length) {
+      lines.push('', ...snippet.helpers.map((h) => (h === '' ? '' : `    ${h}`)));
+    }
   }
 
   lines.push('}');
@@ -164,16 +126,12 @@ export function assembleAttackTests(
   const source = lines.join('\n');
   const leftover = source.match(/\{\{[A-Z_]+\}\}/g);
   if (leftover) {
-    throw new Error(`Unsubstituted placeholder(s) in attack tests: ${[...new Set(leftover)].join(', ')}`);
+    throw new Error(
+      `Unsubstituted placeholder(s) in attack tests: ${[...new Set(leftover)].join(', ')}`,
+    );
   }
 
   return { source, testNames: chosen.map(([, s]) => s.testName), skipped };
-}
-
-function paramFields(opts: GenerateOptions): string[] {
-  const fields = ['minAmountOut: 1', 'deadline: type(uint256).max'];
-  if (opts.routerAllowlist) fields.push('router: address(0)');
-  return fields;
 }
 
 function renderTest(

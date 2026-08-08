@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { printFlashLoanReceiver } from '../src/generator/aave/flashLoanReceiver';
+import { printPreset } from '../src/generator';
 import { assembleAttackTests, type AttackSnippetFile } from '../src/generator/attacks/assembleAttackTests';
 import type { GenerateOptions } from '../src/types';
 
@@ -24,6 +24,6 @@ const opts: GenerateOptions = {
 const { source, testNames, skipped } = assembleAttackTests(opts, snippets);
 fs.mkdirSync(path.join(outDir, 'src'), { recursive: true });
 fs.mkdirSync(path.join(outDir, 'test'), { recursive: true });
-fs.writeFileSync(path.join(outDir, `src/${opts.name}.sol`), printFlashLoanReceiver(opts));
+fs.writeFileSync(path.join(outDir, `src/${opts.name}.sol`), printPreset(opts));
 fs.writeFileSync(path.join(outDir, `test/${opts.name}.attack.t.sol`), source);
 console.error(`emitted ${testNames.length} tests: ${testNames.join(', ')}; skipped ${skipped.length}`);

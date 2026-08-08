@@ -3,7 +3,13 @@
 import { useMemo, useState } from 'react';
 import dynamic from 'next/dynamic';
 
-import { buildFlashLoanReceiver, printFlashLoanReceiver } from '@/generator/aave/flashLoanReceiver';
+import {
+  buildPreset,
+  printPreset,
+  PRESET_BLURBS,
+  PRESET_DEFAULTS,
+  PRESET_LABELS,
+} from '@/generator';
 import { printDeployScript } from '@/generator/aave/deployScript';
 import {
   assembleAttackTests,
@@ -19,6 +25,7 @@ import {
   type AuditResult,
   type FindingId,
   type GenerateOptions,
+  type Preset,
 } from '@/types';
 
 // EditorView touches `document` in its constructor, so the editor may never be
@@ -27,17 +34,6 @@ const CodeEditor = dynamic(() => import('@/components/CodeEditor'), {
   ssr: false,
   loading: () => <div className="p-6 text-sm text-zinc-500">Loading editor…</div>,
 });
-
-const DEFAULTS: GenerateOptions = {
-  preset: 'aave-v3-flashloan-receiver',
-  name: 'MyFlashLoanReceiver',
-  access: 'ownable',
-  pausable: true,
-  asset: '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48',
-  routerAllowlist: true,
-  claimRewards: false,
-  sweepEscapeHatch: true,
-};
 
 const SNIPPETS = snippetFile as unknown as AttackSnippetFile;
 
@@ -51,15 +47,27 @@ const SEVERITY_STYLE: Record<string, string> = {
 };
 
 export default function Home() {
-  const [opts, setOpts] = useState<GenerateOptions>(DEFAULTS);
+  const [opts, setOpts] = useState<GenerateOptions>(
+    PRESET_DEFAULTS['aave-v3-flashloan-receiver'],
+  );
   const set = <K extends keyof GenerateOptions>(k: K, v: GenerateOptions[K]) => {
     setOpts((o) => ({ ...o, [k]: v }));
     setEdited(null);
   };
 
+  // §A8 — one click, no typing on stage. Switching preset resets to that preset's
+  // known-good options and clears any edit, so the demo cannot land in a broken mix.
+  function selectPreset(p: Preset) {
+    setOpts(PRESET_DEFAULTS[p]);
+    setEdited(null);
+    setAuditState(null);
+  }
+
   // Pause, sweep and claim all need someone authorised to call them; the generator
   // rejects them outright when access is 'none', so don't offer them here.
+  // The vault holds principal, so it has no ungated mode at all.
   const noAccess = opts.access === 'none';
+  const vault = opts.preset === 'aave-v3-erc4626-vault';
 
   const [tab, setTab] = useState<Tab>('contract');
   // A user edit detaches the contract from the options, which is the entire point of
@@ -72,11 +80,11 @@ export default function Home() {
     try {
       const tests = assembleAttackTests(opts, SNIPPETS);
       return {
-        contract: printFlashLoanReceiver(opts),
+        contract: printPreset(opts),
         tests: tests.source,
         testNames: tests.testNames,
         deploy: printDeployScript(opts),
-        applied: buildFlashLoanReceiver(opts).appliedFindingIds,
+        applied: buildPreset(opts).appliedFindingIds,
         error: null as string | null,
       };
     } catch (e) {
@@ -129,6 +137,31 @@ export default function Home() {
         }`}
       >
         <aside className="space-y-5 border-r border-zinc-800 p-6">
+          <Field label="Preset">
+            <div className="space-y-1.5">
+              {(Object.keys(PRESET_LABELS) as Preset[]).map((p) => (
+                <button
+                  key={p}
+                  onClick={() => selectPreset(p)}
+                  className={`w-full rounded-md px-3 py-2 text-left ring-1 transition ${
+                    opts.preset === p
+                      ? 'bg-zinc-100 text-zinc-900 ring-zinc-100'
+                      : 'text-zinc-300 ring-zinc-700 hover:ring-zinc-500'
+                  }`}
+                >
+                  <span className="block text-xs font-medium">{PRESET_LABELS[p]}</span>
+                  <span
+                    className={`mt-0.5 block text-[10px] leading-snug ${
+                      opts.preset === p ? 'text-zinc-600' : 'text-zinc-500'
+                    }`}
+                  >
+                    {PRESET_BLURBS[p]}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </Field>
+
           <Field label="Contract name">
             <input
               value={opts.name}
@@ -150,6 +183,7 @@ export default function Home() {
               {(['none', 'ownable', 'roles'] as const).map((a) => (
                 <button
                   key={a}
+                  disabled={vault && a === 'none'}
                   onClick={() => {
                     setOpts((o) =>
                       a === 'none'
@@ -158,7 +192,7 @@ export default function Home() {
                     );
                     setEdited(null);
                   }}
-                  className={`flex-1 rounded-md px-2 py-1.5 text-xs capitalize ring-1 transition ${
+                  className={`flex-1 rounded-md px-2 py-1.5 text-xs capitalize ring-1 transition disabled:cursor-not-allowed disabled:opacity-30 ${
                     opts.access === a
                       ? 'bg-zinc-100 text-zinc-900 ring-zinc-100'
                       : 'text-zinc-400 ring-zinc-700 hover:text-zinc-100'
@@ -178,12 +212,14 @@ export default function Home() {
               disabled={noAccess}
               onClick={() => set('pausable', !opts.pausable)}
             />
-            <Toggle
-              label="Router allowlist"
-              hint="Vetted swap targets + minAmountOut (AAVE-SWP-014)"
-              on={opts.routerAllowlist}
-              onClick={() => set('routerAllowlist', !opts.routerAllowlist)}
-            />
+            {!vault && (
+              <Toggle
+                label="Router allowlist"
+                hint="Vetted swap targets + minAmountOut (AAVE-SWP-014)"
+                on={opts.routerAllowlist}
+                onClick={() => set('routerAllowlist', !opts.routerAllowlist)}
+              />
+            )}
             <Toggle
               label="Claim rewards"
               hint="RewardsController claim path (AAVE-VLT-008)"
