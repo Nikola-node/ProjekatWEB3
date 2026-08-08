@@ -11,46 +11,55 @@ import { tags as t } from '@lezer/highlight';
  * Always loaded via dynamic(..., { ssr: false }): EditorView's constructor needs
  * `document` and dies during prerender.
  *
- * Light theme on the wizard's own gray ramp. A dark editor inside a light shell
- * is the single thing that would make this read as two products stitched together.
+ * The code surface is deliberately the one dark element on the page: a warm
+ * near-black, not a blue-black, so it reads as a different material from the white
+ * cards rather than a different product. Syntax carries real colour — on a dark
+ * ground it can, without the muddiness the same hues have on white.
  */
 
 const surface = EditorView.theme(
   {
-    '&': { backgroundColor: 'white', color: 'var(--text-color)', fontSize: '13px' },
+    '&': {
+      backgroundColor: 'var(--code-bg)',
+      color: 'var(--code-fg)',
+      fontSize: '12px',
+      height: '100%',
+    },
     '.cm-content': {
       fontFamily: 'var(--monospace)',
-      padding: '16px 0',
-      lineHeight: '1.6',
+      padding: '12px 0',
+      lineHeight: '1.55',
     },
     '.cm-gutters': {
-      backgroundColor: 'white',
+      backgroundColor: 'var(--code-bg)',
       border: 'none',
-      color: 'var(--gray-3)',
+      color: 'var(--code-gutter)',
+      fontSize: '11px',
     },
-    '.cm-lineNumbers .cm-gutterElement': { padding: '0 12px 0 20px' },
-    '.cm-activeLine': { backgroundColor: 'var(--blue-1)' },
-    '.cm-activeLineGutter': { backgroundColor: 'transparent', color: 'var(--gray-4)' },
+    '.cm-lineNumbers .cm-gutterElement': { padding: '0 10px 0 14px' },
+    '.cm-activeLine': { backgroundColor: 'var(--code-line)' },
+    '.cm-activeLineGutter': { backgroundColor: 'transparent', color: '#8a847d' },
     '&.cm-focused': { outline: 'none' },
-    '.cm-cursor': { borderLeftColor: 'var(--blue-2)' },
+    '.cm-cursor': { borderLeftColor: '#f0b45a' },
     '.cm-selectionBackground, &.cm-focused .cm-selectionBackground, ::selection': {
-      backgroundColor: 'var(--blue-1) !important',
+      backgroundColor: '#3d3a33 !important',
     },
+    '.cm-scroller': { overflow: 'auto' },
   },
-  { dark: false },
+  { dark: true },
 );
 
 const syntax = HighlightStyle.define([
-  { tag: t.keyword, color: '#8250df' },
-  { tag: [t.controlKeyword, t.moduleKeyword], color: '#cf222e' },
-  { tag: [t.string, t.special(t.string)], color: '#0a3069' },
-  { tag: [t.number, t.bool, t.atom], color: '#0550ae' },
-  { tag: t.comment, color: 'var(--gray-4)', fontStyle: 'italic' },
-  { tag: [t.typeName, t.className], color: '#953800' },
-  { tag: [t.function(t.variableName), t.definition(t.variableName)], color: '#6639ba' },
-  { tag: t.variableName, color: 'var(--text-color)' },
-  { tag: t.operator, color: 'var(--gray-5)' },
-  { tag: t.propertyName, color: 'var(--text-color)' },
+  { tag: t.keyword, color: '#e888b8' },
+  { tag: [t.controlKeyword, t.moduleKeyword], color: '#e888b8' },
+  { tag: [t.string, t.special(t.string)], color: '#9fce6b' },
+  { tag: [t.number, t.bool, t.atom], color: '#f0a45a' },
+  { tag: t.comment, color: '#7d766d', fontStyle: 'italic' },
+  { tag: [t.typeName, t.className], color: '#63c8c0' },
+  { tag: [t.function(t.variableName), t.definition(t.variableName)], color: '#8ab6f0' },
+  { tag: t.variableName, color: '#e6e2dc' },
+  { tag: t.operator, color: '#c0b8ae' },
+  { tag: t.propertyName, color: '#e6e2dc' },
 ]);
 
 export default function CodeEditor({
@@ -69,7 +78,7 @@ export default function CodeEditor({
       extensions={[solidity, surface, syntaxHighlighting(syntax)]}
       editable={!readOnly}
       onChange={onChange}
-      className="scroll h-full"
+      className="scroll-dark h-full"
       basicSetup={{
         lineNumbers: true,
         foldGutter: false,

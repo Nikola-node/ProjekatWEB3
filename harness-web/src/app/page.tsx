@@ -190,7 +190,7 @@ export default function Home() {
       <div className="flex min-h-0 flex-1 gap-4">
         {/* Controls */}
         <aside
-          className="scroll w-[264px] shrink-0 overflow-y-auto rounded-lg bg-white p-4"
+          className="scroll w-[310px] shrink-0 overflow-y-auto rounded-lg bg-white p-5"
           style={{ boxShadow: 'var(--shadow)' }}
         >
           <Group title="Settings">
@@ -199,7 +199,7 @@ export default function Home() {
                 value={opts.name}
                 onChange={(e) => set('name', e.target.value)}
                 spellCheck={false}
-                className="w-full rounded border border-[var(--gray-3)] px-2 py-1 font-mono text-[13px] outline-none focus:border-[var(--blue-2)]"
+                className="w-full rounded border border-[var(--gray-3)] px-2.5 py-1.5 font-mono text-[14px] outline-none focus:border-[var(--blue-2)]"
               />
             </Field>
             <Field label="Underlying asset">
@@ -207,7 +207,7 @@ export default function Home() {
                 value={opts.asset ?? ''}
                 onChange={(e) => set('asset', e.target.value as `0x${string}`)}
                 spellCheck={false}
-                className="w-full rounded border border-[var(--gray-3)] px-2 py-1 font-mono text-[11px] outline-none focus:border-[var(--blue-2)]"
+                className="w-full rounded border border-[var(--gray-3)] px-2.5 py-1.5 font-mono text-[12.5px] outline-none focus:border-[var(--blue-2)]"
               />
             </Field>
           </Group>
@@ -239,7 +239,7 @@ export default function Home() {
               onChange={() => set('sweepEscapeHatch', !opts.sweepEscapeHatch)}
             />
             {noAccess && (
-              <p className="pt-1 text-[12px] leading-snug text-[var(--gray-4)]">
+              <p className="pt-1.5 text-[13px] leading-snug text-[var(--gray-4)]">
                 Each of these sends tokens to a caller-chosen address. Without access control
                 they are the vulnerability, so they cannot be enabled.
               </p>
@@ -247,21 +247,18 @@ export default function Home() {
           </Group>
 
           <Group title="Access Control">
-            {(['none', 'ownable', 'roles'] as const).map((a) => (
-              <label
-                key={a}
-                className={`flex items-center gap-2 py-[3px] capitalize ${
-                  vault && a === 'none'
-                    ? 'cursor-not-allowed text-[var(--gray-4)]'
-                    : 'cursor-pointer'
-                }`}
-              >
-                <input
-                  type="radio"
-                  name="access"
-                  checked={opts.access === a}
+            <div className="segmented">
+              {(['none', 'ownable', 'roles'] as const).map((a) => (
+                <button
+                  key={a}
+                  data-selected={opts.access === a}
                   disabled={vault && a === 'none'}
-                  onChange={() => {
+                  title={
+                    vault && a === 'none'
+                      ? 'A vault holds principal, so it always needs an owner.'
+                      : undefined
+                  }
+                  onClick={() => {
                     setOpts((o) =>
                       a === 'none'
                         ? {
@@ -276,21 +273,22 @@ export default function Home() {
                     setEdited(null);
                     setCompileState(null);
                   }}
-                />
-                {a}
-              </label>
-            ))}
+                >
+                  {a}
+                </button>
+              ))}
+            </div>
           </Group>
 
           <Group title={`Hardened against ${result.applied.length}`} last>
             {result.applied.map((id) => (
               <div key={id} className="flex items-start gap-2 py-[3px]" title={FINDING_TITLES[id]}>
                 <span
-                  className="mt-[6px] h-[6px] w-[6px] shrink-0 rounded-full"
+                  className="mt-[7px] h-[7px] w-[7px] shrink-0 rounded-full"
                   style={{ background: SEV_COLOR[SEVERITY_BY_FINDING[id]] }}
                 />
-                <span className="text-[12px] leading-snug text-[var(--gray-5)]">
-                  <span className="font-mono text-[11px] text-[var(--gray-4)]">{id}</span>{' '}
+                <span className="text-[13.5px] leading-snug text-[var(--gray-5)]">
+                  <span className="font-mono text-[12px] text-[var(--gray-4)]">{id}</span>{' '}
                   {FINDING_TITLES[id]}
                 </span>
               </div>
@@ -303,7 +301,7 @@ export default function Home() {
           className="flex min-w-0 flex-1 flex-col overflow-hidden rounded-lg bg-white"
           style={{ boxShadow: 'var(--shadow)' }}
         >
-          <div className="flex shrink-0 items-center gap-1 border-b border-[var(--gray-2)] px-3 py-2">
+          <div className="flex shrink-0 items-center gap-2 border-b border-[var(--gray-2)] px-3 py-2.5">
             {(
               [
                 ['contract', `src/${opts.name}.sol`],
@@ -314,11 +312,8 @@ export default function Home() {
               <button
                 key={id}
                 onClick={() => setTab(id)}
-                className={`rounded px-2.5 py-1 text-[13px] transition ${
-                  tab === id
-                    ? 'bg-[var(--blue-1)] text-[var(--blue-3)]'
-                    : 'text-[var(--gray-5)] hover:bg-[var(--gray-2)]'
-                }`}
+                className="file-tab"
+                data-selected={tab === id}
               >
                 {label}
               </button>
@@ -326,7 +321,7 @@ export default function Home() {
             {edited !== null && (
               <button
                 onClick={() => setEdited(null)}
-                className="ml-auto text-[12px] text-[var(--blue-2)] hover:underline"
+                className="ml-auto text-[14px] text-[var(--blue-2)] hover:underline"
               >
                 Edited · revert
               </button>
@@ -394,8 +389,8 @@ function Group({
   last?: boolean;
 }) {
   return (
-    <section className={last ? '' : 'mb-4 border-b border-[var(--gray-2)] pb-4'}>
-      <h2 className="section-title mb-2">{title}</h2>
+    <section className={last ? '' : 'mb-5 border-b border-[var(--gray-2)] pb-5'}>
+      <h2 className="section-title mb-2.5">{title}</h2>
       {children}
     </section>
   );
@@ -404,7 +399,7 @@ function Group({
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <label className="mb-2 block last:mb-0">
-      <span className="mb-1 block text-[12px] text-[var(--gray-5)]">{label}</span>
+      <span className="mb-1 block text-[14px] text-[var(--gray-5)]">{label}</span>
       {children}
     </label>
   );
@@ -423,7 +418,7 @@ function Toggle({
 }) {
   return (
     <label
-      className={`flex items-center gap-2 py-[3px] ${
+      className={`flex items-center gap-2.5 py-[5px] text-[15px] ${
         disabled ? 'cursor-not-allowed text-[var(--gray-4)]' : 'cursor-pointer'
       }`}
     >
@@ -445,7 +440,7 @@ function Banner({
   const ok = tone === 'ok';
   return (
     <div
-      className="flex shrink-0 items-start gap-2 border-b px-3 py-2 text-[13px]"
+      className="flex shrink-0 items-start gap-2 border-b px-4 py-2.5 text-[14px]"
       style={{
         background: ok ? 'var(--green-1)' : 'var(--red-1)',
         borderColor: ok ? '#c3e9d4' : '#f7caca',
