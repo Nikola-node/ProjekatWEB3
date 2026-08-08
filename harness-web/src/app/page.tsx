@@ -28,23 +28,23 @@ import {
 // prerendered. `ssr: false` is only legal inside a Client Component.
 const CodeEditor = dynamic(() => import('@/components/CodeEditor'), {
   ssr: false,
-  loading: () => <div className="p-6 font-mono text-xs text-[var(--faint)]">loading editor…</div>,
+  loading: () => <div className="p-6 text-[var(--gray-4)]">Loading editor…</div>,
 });
 
 const SNIPPETS = snippetFile as unknown as AttackSnippetFile;
 
 type Tab = 'contract' | 'tests' | 'deploy';
 
-const SHORT_PRESET: Record<Preset, string> = {
-  'aave-v3-flashloan-receiver': 'Flash loan receiver',
-  'aave-v3-erc4626-vault': 'ERC-4626 vault',
+const TAB_LABEL: Record<Preset, string> = {
+  'aave-v3-flashloan-receiver': 'Flash Loan Receiver',
+  'aave-v3-erc4626-vault': 'ERC-4626 Vault',
 };
 
 const SEV_COLOR: Record<string, string> = {
-  critical: 'var(--crit)',
-  high: '#d98d3f',
-  medium: 'var(--accent)',
-  low: '#7fa6c9',
+  critical: 'var(--red-2)',
+  high: '#d2691e',
+  medium: '#b25e09',
+  low: 'var(--blue-2)',
 };
 
 export default function Home() {
@@ -52,8 +52,9 @@ export default function Home() {
   const [tab, setTab] = useState<Tab>('contract');
   const [edited, setEdited] = useState<string | null>(null);
   const [auditState, setAuditState] = useState<{ result: AuditResult; live: boolean } | null>(null);
-  const [busy, setBusy] = useState<null | 'audit' | 'compile' | 'zip'>(null);
   const [compileState, setCompileState] = useState<CompileResult | null>(null);
+  const [busy, setBusy] = useState<null | 'audit' | 'compile' | 'zip'>(null);
+  const [copied, setCopied] = useState(false);
 
   const set = <K extends keyof GenerateOptions>(k: K, v: GenerateOptions[K]) => {
     setOpts((o) => ({ ...o, [k]: v }));
@@ -96,12 +97,6 @@ export default function Home() {
 
   const source = edited ?? result.contract;
   const shown = tab === 'contract' ? source : tab === 'tests' ? result.tests : result.deploy;
-  const path =
-    tab === 'contract'
-      ? `src/${opts.name}.sol`
-      : tab === 'tests'
-        ? `test/${opts.name}.attack.t.sol`
-        : `script/${opts.name}.s.sol`;
 
   async function runAudit() {
     setBusy('audit');
@@ -136,59 +131,137 @@ export default function Home() {
     }
   }
 
+  async function copyCode() {
+    await navigator.clipboard.writeText(shown);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1600);
+  }
+
   return (
-    <div className="flex h-screen flex-col overflow-hidden">
-      <header className="flex shrink-0 items-center gap-5 border-b border-[var(--line-soft)] px-4 py-2.5">
-        <span className="font-mono text-[13px] font-medium tracking-tight">
-          harness<span className="text-[var(--accent)]">/</span>
-          <span className="text-[var(--muted)]">aave-v3</span>
-        </span>
-        <span className="hidden text-[11px] text-[var(--faint)] sm:block">
-          Contracts that ship with the attacks on them.
-        </span>
-        <div className="ml-auto flex items-center gap-1">
-          <GhostLink href={result.error ? undefined : remixUrl(source)}>Remix</GhostLink>
-          <Ghost onClick={downloadZip} disabled={busy === 'zip' || !!result.error}>
-            {busy === 'zip' ? 'packaging' : 'Download .zip'}
-          </Ghost>
+    <div className="flex h-screen flex-col overflow-hidden p-4">
+      {/* Preset tabs + actions, mirroring the wizard's top row. */}
+      <div className="flex shrink-0 flex-wrap items-center gap-2 pb-4">
+        <div className="flex gap-1">
+          {(Object.keys(PRESET_LABELS) as Preset[]).map((p) => (
+            <button
+              key={p}
+              className="pill font-medium"
+              data-selected={opts.preset === p}
+              onClick={() => selectPreset(p)}
+            >
+              {TAB_LABEL[p]}
+            </button>
+          ))}
         </div>
-      </header>
 
-      <div className="flex min-h-0 flex-1">
-        <aside className="scroll w-[286px] shrink-0 overflow-y-auto border-r border-[var(--line-soft)]">
-          <Section title="preset">
-            {(Object.keys(PRESET_LABELS) as Preset[]).map((p) => (
-              <Row key={p} active={opts.preset === p} onClick={() => selectPreset(p)}>
-                {SHORT_PRESET[p]}
-              </Row>
-            ))}
-          </Section>
+        <div className="ml-auto flex items-center gap-2">
+          <button className="action-button" onClick={copyCode}>
+            {copied ? 'Copied' : 'Copy to Clipboard'}
+          </button>
+          <a
+            className="action-button no-underline"
+            href={result.error ? undefined : remixUrl(source)}
+            target="_blank"
+            rel="noreferrer"
+            aria-disabled={!!result.error}
+          >
+            Open in Remix
+          </a>
+          <button className="action-button" onClick={downloadZip} disabled={busy === 'zip' || !!result.error}>
+            {busy === 'zip' ? 'Packaging…' : 'Download'}
+          </button>
+          <button
+            className="action-button"
+            onClick={runCompile}
+            disabled={busy === 'compile' || !!result.error}
+          >
+            {busy === 'compile' ? 'Compiling…' : 'Compile'}
+          </button>
+          <button
+            className="action-button primary"
+            onClick={runAudit}
+            disabled={busy === 'audit' || !!result.error}
+          >
+            {busy === 'audit' ? 'Auditing…' : 'Audit'}
+          </button>
+        </div>
+      </div>
 
-          <Section title="name">
-            <input
-              value={opts.name}
-              onChange={(e) => set('name', e.target.value)}
-              spellCheck={false}
-              className="w-full bg-transparent px-3 py-1.5 font-mono text-[12px] text-[var(--text)] outline-none"
+      <div className="flex min-h-0 flex-1 gap-4">
+        {/* Controls */}
+        <aside
+          className="scroll w-[264px] shrink-0 overflow-y-auto rounded-lg bg-white p-4"
+          style={{ boxShadow: 'var(--shadow)' }}
+        >
+          <Group title="Settings">
+            <Field label="Name">
+              <input
+                value={opts.name}
+                onChange={(e) => set('name', e.target.value)}
+                spellCheck={false}
+                className="w-full rounded border border-[var(--gray-3)] px-2 py-1 font-mono text-[13px] outline-none focus:border-[var(--blue-2)]"
+              />
+            </Field>
+            <Field label="Underlying asset">
+              <input
+                value={opts.asset ?? ''}
+                onChange={(e) => set('asset', e.target.value as `0x${string}`)}
+                spellCheck={false}
+                className="w-full rounded border border-[var(--gray-3)] px-2 py-1 font-mono text-[11px] outline-none focus:border-[var(--blue-2)]"
+              />
+            </Field>
+          </Group>
+
+          <Group title="Features">
+            <Toggle
+              label="Pausable"
+              checked={opts.pausable}
+              disabled={noAccess}
+              onChange={() => set('pausable', !opts.pausable)}
             />
-          </Section>
-
-          <Section title="asset">
-            <input
-              value={opts.asset ?? ''}
-              onChange={(e) => set('asset', e.target.value as `0x${string}`)}
-              spellCheck={false}
-              className="w-full bg-transparent px-3 py-1.5 font-mono text-[11px] text-[var(--muted)] outline-none"
+            {!vault && (
+              <Toggle
+                label="Router allowlist"
+                checked={opts.routerAllowlist}
+                onChange={() => set('routerAllowlist', !opts.routerAllowlist)}
+              />
+            )}
+            <Toggle
+              label="Claim rewards"
+              checked={opts.claimRewards}
+              disabled={noAccess}
+              onChange={() => set('claimRewards', !opts.claimRewards)}
             />
-          </Section>
+            <Toggle
+              label="Sweep escape hatch"
+              checked={opts.sweepEscapeHatch}
+              disabled={noAccess}
+              onChange={() => set('sweepEscapeHatch', !opts.sweepEscapeHatch)}
+            />
+            {noAccess && (
+              <p className="pt-1 text-[12px] leading-snug text-[var(--gray-4)]">
+                Each of these sends tokens to a caller-chosen address. Without access control
+                they are the vulnerability, so they cannot be enabled.
+              </p>
+            )}
+          </Group>
 
-          <Section title="access">
-            <div className="flex px-3 py-1">
-              {(['none', 'ownable', 'roles'] as const).map((a) => (
-                <button
-                  key={a}
+          <Group title="Access Control">
+            {(['none', 'ownable', 'roles'] as const).map((a) => (
+              <label
+                key={a}
+                className={`flex items-center gap-2 py-[3px] capitalize ${
+                  vault && a === 'none'
+                    ? 'cursor-not-allowed text-[var(--gray-4)]'
+                    : 'cursor-pointer'
+                }`}
+              >
+                <input
+                  type="radio"
+                  name="access"
+                  checked={opts.access === a}
                   disabled={vault && a === 'none'}
-                  onClick={() => {
+                  onChange={() => {
                     setOpts((o) =>
                       a === 'none'
                         ? {
@@ -203,159 +276,92 @@ export default function Home() {
                     setEdited(null);
                     setCompileState(null);
                   }}
-                  className={`mr-4 font-mono text-[11px] transition disabled:cursor-not-allowed disabled:opacity-25 ${
-                    opts.access === a
-                      ? 'text-[var(--accent)]'
-                      : 'text-[var(--faint)] hover:text-[var(--muted)]'
-                  }`}
-                >
-                  {opts.access === a ? '▪ ' : '▫ '}
-                  {a}
-                </button>
-              ))}
-            </div>
-          </Section>
+                />
+                {a}
+              </label>
+            ))}
+          </Group>
 
-          <Section title="options">
-            <Check
-              label="pausable"
-              on={opts.pausable}
-              disabled={noAccess}
-              onClick={() => set('pausable', !opts.pausable)}
-            />
-            {!vault && (
-              <Check
-                label="router allowlist"
-                on={opts.routerAllowlist}
-                onClick={() => set('routerAllowlist', !opts.routerAllowlist)}
-              />
-            )}
-            <Check
-              label="claim rewards"
-              on={opts.claimRewards}
-              disabled={noAccess}
-              onClick={() => set('claimRewards', !opts.claimRewards)}
-            />
-            <Check
-              label="sweep hatch"
-              on={opts.sweepEscapeHatch}
-              disabled={noAccess}
-              onClick={() => set('sweepEscapeHatch', !opts.sweepEscapeHatch)}
-            />
-            {noAccess && (
-              <p className="px-3 pb-1 pt-2 text-[10.5px] leading-snug text-[var(--faint)]">
-                Each of these hands tokens to a caller-chosen address. Ungated, they are the
-                vulnerability.
-              </p>
-            )}
-          </Section>
-
-          <Section title={`hardened against ${result.applied.length}`} last>
-            <div className="px-3 pb-3 pt-0.5">
-              {result.applied.map((id) => (
-                <div
-                  key={id}
-                  className="group flex items-baseline gap-2 py-[3px]"
-                  title={FINDING_TITLES[id]}
-                >
-                  <span
-                    className="h-[7px] w-[7px] shrink-0 rounded-[1px]"
-                    style={{ background: SEV_COLOR[SEVERITY_BY_FINDING[id]] }}
-                  />
-                  <span className="font-mono text-[10px] text-[var(--faint)]">{id}</span>
-                  <span className="truncate text-[10.5px] text-[var(--faint)] opacity-0 transition group-hover:opacity-100">
-                    {FINDING_TITLES[id]}
-                  </span>
-                </div>
-              ))}
-            </div>
-          </Section>
+          <Group title={`Hardened against ${result.applied.length}`} last>
+            {result.applied.map((id) => (
+              <div key={id} className="flex items-start gap-2 py-[3px]" title={FINDING_TITLES[id]}>
+                <span
+                  className="mt-[6px] h-[6px] w-[6px] shrink-0 rounded-full"
+                  style={{ background: SEV_COLOR[SEVERITY_BY_FINDING[id]] }}
+                />
+                <span className="text-[12px] leading-snug text-[var(--gray-5)]">
+                  <span className="font-mono text-[11px] text-[var(--gray-4)]">{id}</span>{' '}
+                  {FINDING_TITLES[id]}
+                </span>
+              </div>
+            ))}
+          </Group>
         </aside>
 
-        <main className="flex min-w-0 flex-1 flex-col">
-          <div className="flex shrink-0 items-center border-b border-[var(--line-soft)]">
+        {/* Code */}
+        <main
+          className="flex min-w-0 flex-1 flex-col overflow-hidden rounded-lg bg-white"
+          style={{ boxShadow: 'var(--shadow)' }}
+        >
+          <div className="flex shrink-0 items-center gap-1 border-b border-[var(--gray-2)] px-3 py-2">
             {(
               [
-                ['contract', 'contract'],
-                ['tests', `attack tests · ${result.testNames.length}`],
-                ['deploy', 'deploy'],
+                ['contract', `src/${opts.name}.sol`],
+                ['tests', `Attack tests · ${result.testNames.length}`],
+                ['deploy', 'Deploy script'],
               ] as [Tab, string][]
             ).map(([id, label]) => (
               <button
                 key={id}
                 onClick={() => setTab(id)}
-                className={`relative px-4 py-2 font-mono text-[11px] transition ${
-                  tab === id ? 'text-[var(--text)]' : 'text-[var(--faint)] hover:text-[var(--muted)]'
+                className={`rounded px-2.5 py-1 text-[13px] transition ${
+                  tab === id
+                    ? 'bg-[var(--blue-1)] text-[var(--blue-3)]'
+                    : 'text-[var(--gray-5)] hover:bg-[var(--gray-2)]'
                 }`}
               >
                 {label}
-                {tab === id && (
-                  <span className="absolute inset-x-3 -bottom-px h-px bg-[var(--accent)]" />
-                )}
               </button>
             ))}
-
-            <span className="ml-3 truncate font-mono text-[10px] text-[var(--faint)]">
-              {result.error ? '' : path}
-            </span>
-
-            <div className="ml-auto flex items-center gap-1 pr-2">
-              {edited !== null && (
-                <button
-                  onClick={() => setEdited(null)}
-                  className="px-2 font-mono text-[10px] text-[var(--accent)] hover:underline"
-                >
-                  edited · revert
-                </button>
-              )}
-              <Ghost onClick={runCompile} disabled={busy === 'compile' || !!result.error}>
-                {busy === 'compile' ? 'compiling' : 'Compile'}
-              </Ghost>
-              <Ghost onClick={runAudit} disabled={busy === 'audit' || !!result.error} accent>
-                {busy === 'audit' ? 'auditing' : 'Audit'}
-              </Ghost>
-            </div>
+            {edited !== null && (
+              <button
+                onClick={() => setEdited(null)}
+                className="ml-auto text-[12px] text-[var(--blue-2)] hover:underline"
+              >
+                Edited · revert
+              </button>
+            )}
           </div>
 
           {compileState && (
-            <div
-              className="flex shrink-0 items-start gap-2.5 border-b px-4 py-2 font-mono text-[11px]"
-              style={{
-                borderColor: 'var(--line-soft)',
-                color: compileState.ok ? 'var(--ok)' : 'var(--crit)',
-                background: compileState.ok ? 'rgba(99,177,119,0.05)' : 'rgba(224,85,90,0.05)',
-              }}
+            <Banner
+              tone={compileState.ok ? 'ok' : 'bad'}
+              onClose={() => setCompileState(null)}
             >
-              <span>{compileState.ok ? 'ok' : 'err'}</span>
               {compileState.ok ? (
-                <span className="text-[var(--muted)]">
-                  solc {SOLC_VERSION} · {compileState.sizeBytes?.toLocaleString()} bytes
+                <>
+                  Compiled with solc {SOLC_VERSION} — {compileState.sizeBytes?.toLocaleString()}{' '}
+                  bytes
                   {compileState.sizeBytes !== undefined &&
                     (compileState.sizeBytes < 24576
-                      ? ' · within EIP-170'
-                      : ' · EXCEEDS EIP-170 24,576')}{' '}
-                  · {compileState.abi?.length} abi entries
-                </span>
+                      ? ' (within the 24,576 EIP-170 limit)'
+                      : ' — over the 24,576 EIP-170 limit')}
+                  , {compileState.abi?.length} ABI entries.
+                </>
               ) : (
-                <pre className="scroll flex-1 overflow-x-auto whitespace-pre-wrap">
+                <pre className="scroll overflow-x-auto whitespace-pre-wrap font-mono text-[12px]">
                   {compileState.errors
                     .filter((e) => e.severity === 'error')
                     .map((e) => e.message)
-                    .join('\n\n') || 'compilation failed'}
+                    .join('\n\n') || 'Compilation failed.'}
                 </pre>
               )}
-              <button
-                onClick={() => setCompileState(null)}
-                className="ml-auto text-[var(--faint)] hover:text-[var(--text)]"
-              >
-                ×
-              </button>
-            </div>
+            </Banner>
           )}
 
           <div className="min-h-0 flex-1">
             {result.error ? (
-              <p className="p-6 font-mono text-[12px] text-[var(--crit)]">{result.error}</p>
+              <p className="p-6 font-mono text-[13px] text-[var(--red-3)]">{result.error}</p>
             ) : (
               <CodeEditor
                 value={shown}
@@ -378,7 +384,7 @@ export default function Home() {
   );
 }
 
-function Section({
+function Group({
   title,
   children,
   last = false,
@@ -388,112 +394,68 @@ function Section({
   last?: boolean;
 }) {
   return (
-    <div className={last ? '' : 'border-b border-[var(--line-soft)]'}>
-      <div className="label px-3 pb-1 pt-3">{title}</div>
-      <div className="pb-2">{children}</div>
-    </div>
-  );
-}
-
-function Row({
-  active,
-  onClick,
-  children,
-}: {
-  active: boolean;
-  onClick: () => void;
-  children: React.ReactNode;
-}) {
-  return (
-    <button
-      onClick={onClick}
-      className={`flex w-full items-center gap-2 px-3 py-1.5 text-left text-[12px] transition ${
-        active
-          ? 'bg-[var(--raised)] text-[var(--text)]'
-          : 'text-[var(--muted)] hover:bg-[var(--panel)] hover:text-[var(--text)]'
-      }`}
-    >
-      <span className={active ? 'text-[var(--accent)]' : 'text-[var(--faint)]'}>
-        {active ? '▪' : '▫'}
-      </span>
+    <section className={last ? '' : 'mb-4 border-b border-[var(--gray-2)] pb-4'}>
+      <h2 className="section-title mb-2">{title}</h2>
       {children}
-    </button>
+    </section>
   );
 }
 
-function Check({
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <label className="mb-2 block last:mb-0">
+      <span className="mb-1 block text-[12px] text-[var(--gray-5)]">{label}</span>
+      {children}
+    </label>
+  );
+}
+
+function Toggle({
   label,
-  on,
-  onClick,
+  checked,
+  onChange,
   disabled = false,
 }: {
   label: string;
-  on: boolean;
-  onClick: () => void;
+  checked: boolean;
+  onChange: () => void;
   disabled?: boolean;
 }) {
   return (
-    <button
-      onClick={onClick}
-      disabled={disabled}
-      className={`flex w-full items-center gap-2 px-3 py-[5px] text-left font-mono text-[11px] transition disabled:cursor-not-allowed disabled:opacity-25 ${
-        on ? 'text-[var(--text)]' : 'text-[var(--faint)] hover:text-[var(--muted)]'
+    <label
+      className={`flex items-center gap-2 py-[3px] ${
+        disabled ? 'cursor-not-allowed text-[var(--gray-4)]' : 'cursor-pointer'
       }`}
     >
-      <span
-        className="grid h-[11px] w-[11px] shrink-0 place-items-center rounded-[2px] border text-[8px] leading-none"
-        style={{
-          borderColor: on ? 'var(--accent)' : 'var(--line)',
-          background: on ? 'var(--accent)' : 'transparent',
-          color: 'var(--bg)',
-        }}
-      >
-        {on ? '✓' : ''}
-      </span>
+      <input type="checkbox" checked={checked} disabled={disabled} onChange={onChange} />
       {label}
-    </button>
+    </label>
   );
 }
 
-function Ghost({
-  onClick,
-  disabled,
+function Banner({
+  tone,
   children,
-  accent = false,
+  onClose,
 }: {
-  onClick: () => void;
-  disabled?: boolean;
+  tone: 'ok' | 'bad';
   children: React.ReactNode;
-  accent?: boolean;
+  onClose: () => void;
 }) {
+  const ok = tone === 'ok';
   return (
-    <button
-      onClick={onClick}
-      disabled={disabled}
-      className={`rounded-[3px] border px-2.5 py-1 font-mono text-[11px] transition disabled:cursor-not-allowed disabled:opacity-30 ${
-        accent
-          ? 'border-[var(--accent-dim)] bg-[var(--accent-dim)] text-[var(--accent)] hover:brightness-125'
-          : 'border-[var(--line)] text-[var(--muted)] hover:border-[var(--faint)] hover:text-[var(--text)]'
-      }`}
+    <div
+      className="flex shrink-0 items-start gap-2 border-b px-3 py-2 text-[13px]"
+      style={{
+        background: ok ? 'var(--green-1)' : 'var(--red-1)',
+        borderColor: ok ? '#c3e9d4' : '#f7caca',
+        color: ok ? 'var(--green-2)' : 'var(--red-3)',
+      }}
     >
-      {children}
-    </button>
-  );
-}
-
-function GhostLink({ href, children }: { href?: string; children: React.ReactNode }) {
-  return (
-    <a
-      href={href}
-      target="_blank"
-      rel="noreferrer"
-      className={`rounded-[3px] border border-[var(--line)] px-2.5 py-1 font-mono text-[11px] transition ${
-        href
-          ? 'text-[var(--muted)] hover:border-[var(--faint)] hover:text-[var(--text)]'
-          : 'pointer-events-none opacity-30'
-      }`}
-    >
-      {children}
-    </a>
+      <div className="min-w-0 flex-1">{children}</div>
+      <button onClick={onClose} aria-label="Dismiss" className="shrink-0 opacity-60 hover:opacity-100">
+        ×
+      </button>
+    </div>
   );
 }

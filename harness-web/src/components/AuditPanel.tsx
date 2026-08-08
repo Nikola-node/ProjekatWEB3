@@ -3,11 +3,11 @@
 import { useState } from 'react';
 import type { AuditResult } from '@/types';
 
-const SEV_COLOR: Record<string, string> = {
-  critical: 'var(--crit)',
-  high: '#d98d3f',
-  medium: 'var(--accent)',
-  low: '#7fa6c9',
+const SEV: Record<string, { fg: string; bg: string }> = {
+  critical: { fg: 'var(--red-3)', bg: 'var(--red-1)' },
+  high: { fg: '#9a4a06', bg: 'var(--amber-1)' },
+  medium: { fg: '#8a5a12', bg: 'var(--amber-1)' },
+  low: { fg: 'var(--blue-3)', bg: 'var(--blue-1)' },
 };
 
 export default function AuditPanel({
@@ -24,27 +24,27 @@ export default function AuditPanel({
   );
 
   return (
-    <aside className="flex w-[356px] shrink-0 flex-col border-l border-[var(--line-soft)]">
-      <div className="flex shrink-0 items-center gap-3 border-b border-[var(--line-soft)] px-4 py-2">
-        <span className="font-mono text-[11px] text-[var(--muted)]">
-          <span style={{ color: 'var(--ok)' }}>{result.score.mitigated}</span> mitigated
-          <span className="mx-1.5 text-[var(--line)]">/</span>
-          <span style={{ color: result.score.triggered ? 'var(--crit)' : 'var(--faint)' }}>
-            {result.score.triggered}
-          </span>{' '}
-          triggered
+    <aside
+      className="flex w-[340px] shrink-0 flex-col overflow-hidden rounded-lg bg-white"
+      style={{ boxShadow: 'var(--shadow)' }}
+    >
+      <div className="flex shrink-0 items-center gap-2 border-b border-[var(--gray-2)] px-3 py-2">
+        <h2 className="section-title">Audit</h2>
+        <span className="text-[12px] text-[var(--gray-5)]">
+          {result.score.mitigated} mitigated, {result.score.triggered} triggered
         </span>
         {!live && (
           <span
-            title="Agent B's /audit is not wired up; these come from a local mock of the same rule shape."
-            className="rounded-[2px] border border-[var(--accent-dim)] px-1 py-px font-mono text-[9px] text-[var(--accent)]"
+            title="Agent B's /audit is not wired up yet; these come from a local mock using the same rule shape."
+            className="rounded-full bg-[var(--gray-2)] px-1.5 py-px text-[11px] text-[var(--gray-5)]"
           >
             mock
           </span>
         )}
         <button
           onClick={onClose}
-          className="ml-auto text-[var(--faint)] transition hover:text-[var(--text)]"
+          aria-label="Close audit"
+          className="ml-auto text-[var(--gray-4)] hover:text-[var(--gray-6)]"
         >
           ×
         </button>
@@ -54,64 +54,62 @@ export default function AuditPanel({
         {result.findings.map((f) => {
           const expanded = open === f.id;
           const triggered = f.status === 'triggered';
+          const sev = SEV[f.severity];
           return (
-            <div key={f.id} className="border-b border-[var(--line-soft)]">
+            <div key={f.id} className="border-b border-[var(--gray-2)] last:border-0">
               <button
                 onClick={() => setOpen(expanded ? null : f.id)}
-                className="flex w-full items-start gap-2.5 px-4 py-2.5 text-left transition hover:bg-[var(--panel)]"
+                className="flex w-full items-start gap-2 px-3 py-2.5 text-left hover:bg-[var(--gray-1)]"
               >
                 <span
-                  className="mt-[5px] h-[7px] w-[7px] shrink-0 rounded-[1px]"
-                  style={{
-                    background: triggered ? SEV_COLOR[f.severity] : 'transparent',
-                    border: triggered ? 'none' : '1px solid var(--line)',
-                  }}
-                />
+                  className="mt-[2px] shrink-0 rounded-full px-1.5 py-px text-[11px] font-medium capitalize"
+                  style={
+                    triggered
+                      ? { background: sev.bg, color: sev.fg }
+                      : { background: 'var(--gray-2)', color: 'var(--gray-5)' }
+                  }
+                >
+                  {triggered ? f.severity : 'ok'}
+                </span>
                 <span className="min-w-0 flex-1">
-                  <span className="flex items-baseline gap-2">
-                    <span className="font-mono text-[10px] text-[var(--faint)]">{f.id}</span>
-                    <span
-                      className="font-mono text-[9px] uppercase"
-                      style={{ color: triggered ? SEV_COLOR[f.severity] : 'var(--faint)' }}
-                    >
-                      {triggered ? f.severity : 'ok'}
-                    </span>
-                  </span>
                   <span
-                    className="mt-1 block text-[12px] leading-snug"
-                    style={{ color: triggered ? 'var(--text)' : 'var(--muted)' }}
+                    className="block text-[13px] leading-snug"
+                    style={{ color: triggered ? 'var(--text-color)' : 'var(--gray-5)' }}
                   >
                     {f.title}
+                  </span>
+                  <span className="mt-0.5 block font-mono text-[11px] text-[var(--gray-4)]">
+                    {f.id}
                   </span>
                 </span>
               </button>
 
               {expanded && (
-                <div className="space-y-3 bg-[var(--panel)] px-4 pb-4 pt-1 text-[11.5px] leading-relaxed">
-                  <p className="text-[var(--muted)]">{f.summary}</p>
-                  <p className="text-[var(--faint)]">{f.detail}</p>
+                <div className="space-y-3 bg-[var(--gray-1)] px-3 pb-3 pt-1 text-[12.5px] leading-relaxed">
+                  <p>{f.summary}</p>
+                  <p className="text-[var(--gray-5)]">{f.detail}</p>
 
                   <div>
-                    <p className="label pb-1">incidents</p>
+                    <h3 className="section-title mb-1">Incidents</h3>
                     {f.incidents.map((i) => (
                       <p key={i.url} className="py-px">
                         <a
                           href={i.url}
                           target="_blank"
                           rel="noreferrer"
-                          className="text-[var(--muted)] underline decoration-[var(--line)] underline-offset-2 hover:text-[var(--text)] hover:decoration-[var(--faint)]"
+                          className="text-[var(--blue-2)] hover:underline"
                         >
                           {i.name}
                         </a>
-                        {i.loss && <span className="text-[var(--faint)]"> · {i.loss}</span>}
+                        {i.loss && <span className="text-[var(--gray-4)]"> — {i.loss}</span>}
                         {i.pocFolder && (
                           <a
                             href={`https://github.com/sanbir/evm-hack-registry/tree/main/${i.pocFolder}`}
                             target="_blank"
                             rel="noreferrer"
-                            className="ml-1.5 font-mono text-[9.5px] text-[var(--accent)] hover:underline"
+                            className="ml-2 rounded-full bg-[var(--gray-2)] px-1.5 py-px text-[11px] text-[var(--gray-6)] hover:bg-[var(--gray-3)]"
                           >
-                            run poc →
+                            Run the PoC
                           </a>
                         )}
                       </p>
@@ -119,17 +117,19 @@ export default function AuditPanel({
                   </div>
 
                   <div>
-                    <p className="label pb-1">{triggered ? 'remediation' : 'how this is mitigated'}</p>
-                    <p className="text-[var(--muted)]">{f.remediation}</p>
+                    <h3 className="section-title mb-1">
+                      {triggered ? 'Remediation' : 'How this is mitigated'}
+                    </h3>
+                    <p className="text-[var(--gray-5)]">{f.remediation}</p>
                     {f.line && (
-                      <p className="mt-1 font-mono text-[10px] text-[var(--faint)]">
-                        matched line {f.line}
+                      <p className="mt-1 font-mono text-[11px] text-[var(--gray-4)]">
+                        Matched line {f.line}
                       </p>
                     )}
                   </div>
 
-                  <p className="font-mono text-[9.5px] text-[var(--faint)]">
-                    {f.vulnClasses.join('  ')}
+                  <p className="font-mono text-[11px] text-[var(--gray-4)]">
+                    {f.vulnClasses.join('  ·  ')}
                   </p>
                 </div>
               )}

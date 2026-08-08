@@ -1,43 +1,57 @@
 @import "tailwindcss";
 
 /*
- * Narrow palette on purpose: one warm neutral ramp, one accent, and two signal
- * colours reserved exclusively for audit state. Nothing else gets colour, so when
- * something turns red it actually means something.
+ * Tokens lifted from OpenZeppelin Wizard's own bundle.css so this reads as a
+ * sibling of the tool it extends rather than a lookalike. Same gray ramp, same
+ * #4e5de4 selection blue, same 0.25rem spacing scale, same 20px pill radius.
  */
 :root {
-  --bg: #0c0c0e;
-  --panel: #101013;
-  --raised: #16161a;
-  --line: #26262c;
-  --line-soft: #1b1b20;
+  --blue-1: #f5f6ff;
+  --blue-2: #4e5de4;
+  --blue-3: #343f9d;
 
-  --text: #e8e6e3;
-  --muted: #9a9aa4;
-  --faint: #61616b;
+  --gray-1: #f9fafb;
+  --gray-2: #eff1f3;
+  --gray-3: #d8dbe2;
+  --gray-4: #818998;
+  --gray-5: #575c66;
+  --gray-6: #2c374b;
 
-  --accent: #d8a34a;
-  --accent-dim: #4a3a1c;
+  --red-1: #feecec;
+  --red-2: #f53d3d;
+  --red-3: #aa0909;
 
-  --crit: #e0555a;
-  --ok: #63b177;
+  --green-1: #ecfdf3;
+  --green-2: #12854f;
+
+  --amber-1: #fff8eb;
+  --amber-2: #b25e09;
+
+  --text-color: #333333;
+  --text-small: 0.875rem;
+  --shadow: 0 2px 3px rgba(0, 0, 0, 0.1);
+
+  --sans-serif: system-ui, sans-serif;
+  --monospace: ui-monospace, "Cascadia Code", "Source Code Pro", Menlo, Consolas,
+    "DejaVu Sans Mono", monospace;
 }
 
 @theme inline {
-  --color-bg: var(--bg);
-  --color-panel: var(--panel);
-  --color-raised: var(--raised);
-  --color-line: var(--line);
-  --color-line-soft: var(--line-soft);
-  --color-text: var(--text);
-  --color-muted: var(--muted);
-  --color-faint: var(--faint);
-  --color-accent: var(--accent);
-  --color-accent-dim: var(--accent-dim);
-  --color-crit: var(--crit);
-  --color-ok: var(--ok);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-blue-1: var(--blue-1);
+  --color-blue-2: var(--blue-2);
+  --color-blue-3: var(--blue-3);
+  --color-gray-1: var(--gray-1);
+  --color-gray-2: var(--gray-2);
+  --color-gray-3: var(--gray-3);
+  --color-gray-4: var(--gray-4);
+  --color-gray-5: var(--gray-5);
+  --color-gray-6: var(--gray-6);
+  --color-red-1: var(--red-1);
+  --color-red-2: var(--red-2);
+  --color-red-3: var(--red-3);
+  --color-ink: var(--text-color);
+  --font-sans: var(--sans-serif);
+  --font-mono: var(--monospace);
 }
 
 html,
@@ -46,23 +60,75 @@ body {
 }
 
 body {
-  background: var(--bg);
-  color: var(--text);
-  font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  background: var(--gray-1);
+  color: var(--text-color);
+  font-family: var(--sans-serif);
+  font-size: var(--text-small);
   -webkit-font-smoothing: antialiased;
 }
 
-/* Chrome and labels are monospace, prose is not. Reads as a tool, not a landing page. */
-.label {
-  font-family: var(--font-geist-mono), ui-monospace, monospace;
-  font-size: 10px;
-  letter-spacing: 0.04em;
-  color: var(--faint);
+/* Wizard's own control chrome: pill tabs, hairline action buttons. */
+.pill {
+  padding: var(--size-2, 0.5rem) var(--size-4, 1rem);
+  border-radius: 20px;
+  border: 0;
+  background-color: transparent;
+  cursor: pointer;
+  transition: background-color ease-in-out 0.2s;
+}
+.pill:hover {
+  background-color: var(--gray-2);
+}
+.pill[data-selected="true"] {
+  background-color: var(--blue-2);
+  color: white;
 }
 
-::selection {
-  background: var(--accent-dim);
-  color: var(--text);
+.action-button {
+  padding: 0.375rem 0.75rem;
+  border-radius: 20px;
+  background-color: var(--gray-1);
+  border: 1px solid var(--gray-3);
+  color: var(--gray-6);
+  cursor: pointer;
+  transition: background-color ease-in-out 0.2s;
+}
+.action-button:hover:not(:disabled) {
+  background-color: var(--gray-2);
+}
+.action-button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.action-button.primary {
+  background-color: var(--blue-2);
+  border-color: var(--blue-2);
+  color: white;
+}
+.action-button.primary:hover:not(:disabled) {
+  background-color: var(--blue-3);
+}
+
+/* Section heading in the controls column. */
+.section-title {
+  color: var(--gray-4);
+  font-size: 0.75rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+input[type="checkbox"],
+input[type="radio"] {
+  accent-color: var(--blue-2);
+  width: 0.875rem;
+  height: 0.875rem;
+  cursor: pointer;
+}
+
+:focus-visible {
+  outline: 2px solid var(--blue-2);
+  outline-offset: 1px;
 }
 
 .scroll::-webkit-scrollbar {
@@ -73,10 +139,16 @@ body {
   background: transparent;
 }
 .scroll::-webkit-scrollbar-thumb {
-  background: var(--line);
-  border: 3px solid var(--bg);
+  background: var(--gray-3);
+  border: 3px solid white;
   border-radius: 99px;
 }
 .scroll::-webkit-scrollbar-thumb:hover {
-  background: #34343c;
+  background: var(--gray-4);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    transition-duration: 0.01ms !important;
+  }
 }
