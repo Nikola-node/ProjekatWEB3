@@ -1,0 +1,77 @@
+{
+  "schemaVersion": "harness-attack-snippets/v1",
+  "_readme": [
+    "Consumed by harness-web/src/generator/attacks/assembleAttackTests.ts (Agent A, task A5).",
+    "Owned by Agent B (task B3b). Agent A wrote the two entries below as the §7 fallback",
+    "so A5 was not blocked; overwrite them freely, the assembler does not care.",
+    "",
+    "Keys MUST be finding IDs from contract/types.ts FINDING_IDS. A snippet whose ID is",
+    "not in the generated project's appliedFindingIds is skipped, so it is safe to ship",
+    "snippets for findings that only some option combinations mitigate.",
+    "",
+    "`body` lines are Solidity statements placed inside the test function at one indent.",
+    "`helpers` lines are emitted at contract level (extra helper contracts, constants).",
+    "Placeholders are substituted before emission; any {{UNKNOWN}} left over is a hard",
+    "error rather than a silently broken test."
+  ],
+  "placeholders": {
+    "{{CONTRACT}}": "the deployed instance under test, e.g. `harness`",
+    "{{CONTRACT_TYPE}}": "the generated contract's type name, e.g. `MyFlashLoanReceiver`",
+    "{{POOL}}": "IPool, resolved from the addresses provider in setUp",
+    "{{ASSET}}": "the underlying ERC20 address constant",
+    "{{ATOKEN}}": "the corresponding aToken address constant",
+    "{{PARAMS}}": "call to `_defaultParams()`, which abi.encodes a valid FlashParams"
+  },
+  "snippets": {
+    "AAVE-FL-001": {
+      "testName": "test_RejectsThirdPartyInitiator",
+      "title": "Flash-loan callback not gated to Pool + initiator",
+      "incidents": [
+        {
+          "name": "DODO MarginTrading",
+          "url": "https://github.com/sherlock-audit/2023-01-derby-judging/issues/150",
+          "pocFolder": "2021-03-dodo_flashloan_exp"
+        },
+        {
+          "name": "Mimo SuperVault (Code4rena H-02)",
+          "url": "https://code4rena.com/reports/2022-08-mimo"
+        }
+      ],
+      "comments": [
+        "AAVE-FL-001 — anyone may call Pool.flashLoanSimple naming OUR contract as the",
+        "receiver. Aave then invokes our callback on their behalf, with their params.",
+        "Checking msg.sender == Pool is NOT enough: the Pool really is the caller.",
+        "This is the bug that drained DODO MarginTrading and Mimo SuperVault."
+      ],
+      "body": [
+        "address attacker = makeAddr(\"attacker\");",
+        "",
+        "vm.prank(attacker);",
+        "vm.expectRevert(abi.encodeWithSignature(\"NotSelfInitiated(address)\", attacker));",
+        "{{POOL}}.flashLoanSimple(address({{CONTRACT}}), {{ASSET}}, 1_000e6, {{PARAMS}}, 0);"
+      ]
+    },
+    "AAVE-FL-002": {
+      "testName": "test_RejectsAttackerControlledParams",
+      "title": "Attacker-controlled calldata executed from callback params",
+      "incidents": [
+        {
+          "name": "Mimo SuperVault aggregatorSwap(dexTxData)",
+          "url": "https://code4rena.com/reports/2022-08-mimo"
+        }
+      ],
+      "comments": [
+        "AAVE-FL-002 — the tutorial pattern decodes `params` into (address target,",
+        "bytes data) and calls it, turning finding 001 from a revert into a drain.",
+        "Here `params` decodes to a fixed struct with no call target, so hostile bytes",
+        "cannot become an external call. Asserted even with both other gates satisfied."
+      ],
+      "body": [
+        "// Worst case: the attacker somehow satisfies the caller AND initiator gates.",
+        "vm.prank(address({{POOL}}));",
+        "vm.expectRevert();",
+        "{{CONTRACT}}.executeOperation({{ASSET}}, 1_000e6, 5e5, address({{CONTRACT}}), hex\"deadbeef\");"
+      ]
+    }
+  }
+}
