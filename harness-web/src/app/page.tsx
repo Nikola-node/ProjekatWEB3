@@ -10,10 +10,13 @@ import {
   type AttackSnippetFile,
 } from '@/generator/attacks/assembleAttackTests';
 import snippetFile from '@/generated/attack-snippets.json';
+import AuditPanel from '@/components/AuditPanel';
+import { audit } from '@/lib/api';
 import {
   FINDING_TITLES,
   SEVERITY_BY_FINDING,
   REMAPPINGS,
+  type AuditResult,
   type FindingId,
   type GenerateOptions,
 } from '@/types';
@@ -49,14 +52,21 @@ const SEVERITY_STYLE: Record<string, string> = {
 
 export default function Home() {
   const [opts, setOpts] = useState<GenerateOptions>(DEFAULTS);
-  const set = <K extends keyof GenerateOptions>(k: K, v: GenerateOptions[K]) =>
+  const set = <K extends keyof GenerateOptions>(k: K, v: GenerateOptions[K]) => {
     setOpts((o) => ({ ...o, [k]: v }));
+    setEdited(null);
+  };
 
   // Pause, sweep and claim all need someone authorised to call them; the generator
   // rejects them outright when access is 'none', so don't offer them here.
   const noAccess = opts.access === 'none';
 
   const [tab, setTab] = useState<Tab>('contract');
+  // A user edit detaches the contract from the options, which is the entire point of
+  // step 4 of the demo: delete a require, audit, watch a Critical flip to triggered.
+  const [edited, setEdited] = useState<string | null>(null);
+  const [auditState, setAuditState] = useState<{ result: AuditResult; live: boolean } | null>(null);
+  const [auditing, setAuditing] = useState(false);
 
   const result = useMemo(() => {
     try {
@@ -81,8 +91,20 @@ export default function Home() {
     }
   }, [opts]);
 
-  const shown =
-    tab === 'contract' ? result.contract : tab === 'tests' ? result.tests : result.deploy;
+  const contractSource = edited ?? result.contract;
+  const shown = tab === 'contract' ? contractSource : tab === 'tests' ? result.tests : result.deploy;
+
+  async function runAudit() {
+    setAuditing(true);
+    try {
+      setAuditState(await audit({ preset: opts.preset, source: contractSource }));
+    } catch (e) {
+      console.error(e);
+      setAuditState(null);
+    } finally {
+      setAuditing(false);
+    }
+  }
   const filename =
     tab === 'contract'
       ? `src/${opts.name}.sol`
@@ -101,7 +123,11 @@ export default function Home() {
         </p>
       </header>
 
-      <div className="grid grid-cols-1 lg:grid-cols-[340px_1fr]">
+      <div
+        className={`grid grid-cols-1 ${
+          auditState ? 'lg:grid-cols-[340px_1fr_380px]' : 'lg:grid-cols-[340px_1fr]'
+        }`}
+      >
         <aside className="space-y-5 border-r border-zinc-800 p-6">
           <Field label="Contract name">
             <input
@@ -124,13 +150,14 @@ export default function Home() {
               {(['none', 'ownable', 'roles'] as const).map((a) => (
                 <button
                   key={a}
-                  onClick={() =>
+                  onClick={() => {
                     setOpts((o) =>
                       a === 'none'
                         ? { ...o, access: a, pausable: false, claimRewards: false, sweepEscapeHatch: false }
                         : { ...o, access: a },
-                    )
-                  }
+                    );
+                    setEdited(null);
+                  }}
                   className={`flex-1 rounded-md px-2 py-1.5 text-xs capitalize ring-1 transition ${
                     opts.access === a
                       ? 'bg-zinc-100 text-zinc-900 ring-zinc-100'
@@ -236,9 +263,21 @@ export default function Home() {
           {result.error ? (
             <p className="p-6 font-mono text-sm text-red-400">{result.error}</p>
           ) : (
-            <CodeEditor value={shown} readOnly />
+            <CodeEditor
+              value={shown}
+              readOnly={tab !== 'contract'}
+              onChange={tab === 'contract' ? setEdited : undefined}
+            />
           )}
         </section>
+
+        {auditState && (
+          <AuditPanel
+            result={auditState.result}
+            live={auditState.live}
+            onClose={() => setAuditState(null)}
+          />
+        )}
       </div>
     </main>
   );
