@@ -256,9 +256,28 @@ export default function Home() {
                 </button>
               ))}
             </div>
-            <span className="font-mono text-[11px] text-zinc-600">
-              {result.error ? 'invalid options' : `${filename} · ${shown.split('\n').length} lines`}
-            </span>
+            <div className="flex items-center gap-3">
+              {edited !== null && (
+                <button
+                  onClick={() => setEdited(null)}
+                  className="text-[11px] text-amber-400 hover:text-amber-300"
+                >
+                  edited · reset
+                </button>
+              )}
+              <span className="font-mono text-[11px] text-zinc-600">
+                {result.error
+                  ? 'invalid options'
+                  : `${filename} · ${shown.split('\n').length} lines`}
+              </span>
+              <button
+                onClick={runAudit}
+                disabled={auditing || !!result.error}
+                className="rounded bg-emerald-500/90 px-2.5 py-1 text-xs font-medium text-zinc-950 transition hover:bg-emerald-400 disabled:opacity-40"
+              >
+                {auditing ? 'Auditing…' : 'Run audit'}
+              </button>
+            </div>
           </div>
           {result.error ? (
             <p className="p-6 font-mono text-sm text-red-400">{result.error}</p>
