@@ -65,5 +65,6 @@ export const PRESET_DEFAULTS: Record<Preset, GenerateOptions> = {
     sweepEscapeHatch: true,
     depositCap: '10000000000000',
     feeBps: 200,
+    decimalsOffset: 6,
   },
 };

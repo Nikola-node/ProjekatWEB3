@@ -32,6 +32,9 @@ export interface GenerateOptions {
   sweepEscapeHatch: boolean;
   depositCap?: string;           // decimal string, vault preset only
   feeBps?: number;               // 0..1000, vault preset only
+  decimalsOffset?: number;       // 0..12, vault preset only. Virtual-share exponent
+                                 // defending the empty-vault inflation attack; the
+                                 // single most consequential vault setting. Default 6.
 }
 
 export interface GeneratedProject {

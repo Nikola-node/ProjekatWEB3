@@ -33,6 +33,12 @@ function validate(opts: GenerateOptions): void {
   if (opts.feeBps !== undefined && !(Number.isInteger(opts.feeBps) && opts.feeBps >= 0 && opts.feeBps <= 1000)) {
     messages.feeBps = 'Must be an integer between 0 and 1000';
   }
+  if (
+    opts.decimalsOffset !== undefined &&
+    !(Number.isInteger(opts.decimalsOffset) && opts.decimalsOffset >= 0 && opts.decimalsOffset <= 12)
+  ) {
+    messages.decimalsOffset = 'Must be an integer between 0 and 12';
+  }
   if (opts.access === 'none') {
     messages.access = 'A vault holds principal; harvest, sweep and pause must be gated';
   }
@@ -135,11 +141,16 @@ function addAccounting(c: ContractBuilder, opts: GenerateOptions, applied: Findi
   c.setFunctionBody(['return _managedAssets;'], fns.totalAssets);
   c.addOverride({ name: 'ERC4626' }, fns.totalAssets);
 
+  const offset = opts.decimalsOffset ?? 6;
   c.setFunctionComments(
-    ['/// @dev AAVE-VLT-003 — virtual shares, so an empty vault cannot be inflated.'],
+    [
+      '/// @dev AAVE-VLT-003 — virtual shares, so an empty vault cannot be inflated.',
+      `/// @dev At offset ${offset}, seeding the rounding attack costs the attacker`,
+      `/// @dev roughly 10^${offset} times the deposit they are trying to capture.`,
+    ],
     fns._decimalsOffset,
   );
-  c.setFunctionBody(['return 6;'], fns._decimalsOffset);
+  c.setFunctionBody([`return ${offset};`], fns._decimalsOffset);
   c.addOverride({ name: 'ERC4626' }, fns._decimalsOffset);
 
   applied.push(FINDING_IDS.VAULT_ATOKEN_BALANCE_DENOMINATOR);

@@ -12,6 +12,8 @@ import {
 import snippetFile from '@/generated/attack-snippets.json';
 import AuditPanel from '@/components/AuditPanel';
 import ThemeToggle from '@/components/ThemeToggle';
+import VaultAdvicePanel from '@/components/VaultAdvicePanel';
+import { analyzeVault, type SettingAdvice, type VaultAnalysis } from '@/lib/vaultAdvice';
 import { audit, compile } from '@/lib/api';
 import { buildProjectZip, downloadBlob, remixUrl } from '@/lib/exportProject';
 import {
@@ -54,7 +56,9 @@ export default function Home() {
   const [edited, setEdited] = useState<string | null>(null);
   const [auditState, setAuditState] = useState<{ result: AuditResult; live: boolean } | null>(null);
   const [compileState, setCompileState] = useState<CompileResult | null>(null);
-  const [busy, setBusy] = useState<null | 'audit' | 'compile' | 'zip'>(null);
+  const [busy, setBusy] = useState<null | 'audit' | 'compile' | 'zip' | 'advice'>(null);
+  const [advice, setAdvice] = useState<VaultAnalysis | null>(null);
+  const [adviceError, setAdviceError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
 
   const set = <K extends keyof GenerateOptions>(k: K, v: GenerateOptions[K]) => {
@@ -68,6 +72,32 @@ export default function Home() {
     setEdited(null);
     setAuditState(null);
     setCompileState(null);
+    setAdvice(null);
+    setAdviceError(null);
+  }
+
+  /** Reads Aave's live state and judges the vault settings against it. */
+  async function runAdvice() {
+    setBusy('advice');
+    setAdviceError(null);
+    try {
+      setAdvice(await analyzeVault(opts));
+      setAuditState(null);
+    } catch (e) {
+      setAdvice(null);
+      setAdviceError((e as Error).message);
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  /** Takes the recommended value straight into the options. */
+  function applyAdvice(a: SettingAdvice) {
+    const num = a.recommended?.match(/\(([0-9]+)\)/)?.[1] ?? a.recommended?.match(/[0-9]+/)?.[0];
+    if (!num) return;
+    if (a.setting === 'depositCap') set('depositCap', num);
+    if (a.setting === 'feeBps') set('feeBps', Number(num));
+    if (a.setting === 'decimalsOffset') set('decimalsOffset', Number(num));
   }
 
   const noAccess = opts.access === 'none';
@@ -247,6 +277,55 @@ export default function Home() {
             )}
           </Group>
 
+          {vault && (
+            <Group title="Vault settings">
+              <Field label="Deposit cap (raw units)">
+                <input
+                  value={opts.depositCap ?? ''}
+                  onChange={(e) => set('depositCap', e.target.value || undefined)}
+                  spellCheck={false}
+                  className="text-input text-[13px]"
+                />
+              </Field>
+              <Field label={`Performance fee — ${opts.feeBps ?? 0} bps`}>
+                <input
+                  type="range"
+                  min={0}
+                  max={1000}
+                  step={25}
+                  value={opts.feeBps ?? 0}
+                  onChange={(e) => set('feeBps', Number(e.target.value))}
+                  className="w-full"
+                  style={{ accentColor: 'var(--blue-2)' }}
+                />
+              </Field>
+              <Field label={`Virtual share offset — ${opts.decimalsOffset ?? 6}`}>
+                <input
+                  type="range"
+                  min={0}
+                  max={12}
+                  step={1}
+                  value={opts.decimalsOffset ?? 6}
+                  onChange={(e) => set('decimalsOffset', Number(e.target.value))}
+                  className="w-full"
+                  style={{ accentColor: 'var(--blue-2)' }}
+                />
+              </Field>
+              <button
+                className="btn mt-1 w-full justify-center"
+                onClick={runAdvice}
+                disabled={busy === 'advice'}
+              >
+                {busy === 'advice' ? 'Reading Aave…' : 'Check against live Aave'}
+              </button>
+              {adviceError && (
+                <p className="mt-2 text-[13px] leading-snug" style={{ color: 'var(--red-3)' }}>
+                  {adviceError}
+                </p>
+              )}
+            </Group>
+          )}
+
           <Group title="Access Control">
             <div className="segmented">
               {(['none', 'ownable', 'roles'] as const).map((a) => (
@@ -366,6 +445,14 @@ export default function Home() {
             )}
           </div>
         </main>
+
+        {advice && !auditState && (
+          <VaultAdvicePanel
+            analysis={advice}
+            onApply={applyAdvice}
+            onClose={() => setAdvice(null)}
+          />
+        )}
 
         {auditState && (
           <AuditPanel
