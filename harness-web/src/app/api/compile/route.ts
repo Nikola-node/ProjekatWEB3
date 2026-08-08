@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { createRequire } from 'node:module';
 
-import { CONTRACT_NAME_RE, type CompileRequest, type CompileResult } from '@/types';
+import { CONTRACT_NAME_RE, EVM_VERSION, type CompileRequest, type CompileResult } from '@/types';
 
 /**
  * Fallback for Agent B's POST /compile (task B4).
@@ -62,6 +62,9 @@ export async function POST(req: Request): Promise<Response> {
     sources: { [`${contractName}.sol`]: { content: source } },
     settings: {
       optimizer: { enabled: true, runs: 200 },
+      // Pinned to match the exported foundry.toml. If these diverge, the bytecode
+      // the UI reports is not the bytecode the user's local build produces.
+      evmVersion: EVM_VERSION,
       outputSelection: { '*': { '*': ['abi', 'evm.bytecode.object'] } },
     },
   };

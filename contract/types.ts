@@ -70,7 +70,11 @@ export interface CompileResult {
 
 export interface DeployResult { address: `0x${string}`; explorerUrl: string; txHash: string; }
 
-export type Scenario = 'supply-borrow' | 'flashloan-simple' | 'leverage-loop';
+export type Scenario =
+  | 'supply-borrow'
+  | 'flashloan-simple'
+  | 'leverage-loop'
+  | 'vault-deposit'; // added with Agent B for the ERC-4626 preset; purely additive
 export interface SimulateResult {
   ok: boolean;
   scenario: Scenario;
@@ -182,6 +186,8 @@ export const IMPORT_PATHS = {
 /** Pinned so generated pragma, solc, and the Foundry project never disagree. */
 export const SOLC_VERSION = '0.8.27';
 export const SOLIDITY_PRAGMA = '^0.8.27';
+/** Pinned, not inherited from the solc default, which has moved between releases. */
+export const EVM_VERSION = 'cancun';
 
 // ---------------------------------------------------------------------------
 // 4. API surface (§5.6 item 4). Agent A keeps the base URL in one env var.

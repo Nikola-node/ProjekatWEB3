@@ -6,7 +6,7 @@ import {
   assembleAttackTests,
   type AttackSnippetFile,
 } from '@/generator/attacks/assembleAttackTests';
-import { REMAPPINGS, SOLC_VERSION, type GenerateOptions } from '@/types';
+import { EVM_VERSION, REMAPPINGS, SOLC_VERSION, type GenerateOptions } from '@/types';
 
 /**
  * A9 — a Foundry project the user can actually run, and a Remix link that needs no
@@ -23,6 +23,7 @@ test = "test"
 script = "script"
 libs = ["lib"]
 solc = "${SOLC_VERSION}"
+evm_version = "${EVM_VERSION}"
 optimizer = true
 optimizer_runs = 200
 
@@ -50,9 +51,10 @@ echo "Now set MAINNET_RPC_URL and run:  forge test -vv"
 const ENV_EXAMPLE = `# Any archive-capable mainnet endpoint, or the Tenderly Virtual Environment public RPC.
 MAINNET_RPC_URL=
 
-# Optional. Leave unset to fork at latest; set it to pin the fork and make the
-# attack suite reproducible.
-TENDERLY_FORK_BLOCK=
+# Pinned so the attack suite is reproducible: an unpinned fork drifts with mainnet
+# and a suite that is green today goes red tomorrow for reasons unrelated to the code.
+# Matches the block the Tenderly Virtual Environment forks at.
+TENDERLY_FORK_BLOCK=25710954
 
 # Only needed for script/*.s.sol broadcasts.
 PRIVATE_KEY=
