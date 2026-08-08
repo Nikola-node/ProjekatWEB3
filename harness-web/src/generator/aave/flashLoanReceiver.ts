@@ -384,6 +384,7 @@ function addOperationalSurface(
         '/// @notice AAVE-VLT-009 — recover tokens that arrived outside the strategy.',
         '/// @dev Safe here precisely because this contract holds no principal between',
         '/// @dev flash loans (AAVE-FL-013). On the vault preset this must exclude the asset.',
+        '/// @dev AAVE-RISK-006 — also the exit for a zero-LTV aToken pushed here by a griefer.',
       ],
       fns.sweep,
     );
@@ -400,6 +401,9 @@ function addOperationalSurface(
     );
     gate(c, fns.sweep, opts, 'SWEEPER', undefined);
     applied.push(FINDING_IDS.VAULT_NO_ESCAPE_HATCH);
+    // AAVE-RISK-006. Zero-LTV dust is only unrecoverable without a hatch; this receiver
+    // also never borrows, which is the other half of why the dust stays inert.
+    applied.push(FINDING_IDS.RISK_LTV0_POISON_DUST);
   }
 
   if (opts.claimRewards) {

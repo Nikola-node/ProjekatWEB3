@@ -22,6 +22,7 @@ const opts: GenerateOptions = {
 };
 
 const project: GeneratedProject = {
+  preset: opts.preset,
   contractName: opts.name,
   contractSource: printFlashLoanReceiver(opts),
   attackTestSource: assembleAttackTests(opts, snippets).source,

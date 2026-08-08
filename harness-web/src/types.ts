@@ -35,6 +35,7 @@ export interface GenerateOptions {
 }
 
 export interface GeneratedProject {
+  preset: Preset;                // which preset produced this; consumers should not infer it
   contractName: string;
   contractSource: string;        // src/<Name>.sol
   attackTestSource: string;      // test/<Name>.attack.t.sol

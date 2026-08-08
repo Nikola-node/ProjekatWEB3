@@ -311,6 +311,8 @@ function addVaultSurface(c: ContractBuilder, opts: GenerateOptions, applied: Fin
         '/// @notice AAVE-VLT-009 — recover airdrops and dust.',
         '/// @dev The principal and its aToken are excluded. A sweep that can reach either',
         '/// @dev is not an escape hatch, it is the vulnerability.',
+        '/// @dev AAVE-RISK-006 — this is also the exit for a FOREIGN aToken. Anyone can push',
+        '/// @dev 1 wei of a zero-LTV aToken here; without a hatch it would sit forever.',
       ],
       fns.sweep,
     );
@@ -330,6 +332,9 @@ function addVaultSurface(c: ContractBuilder, opts: GenerateOptions, applied: Fin
     );
     requireAccessControl(c, fns.sweep, accessOf(opts), 'SWEEPER', undefined);
     applied.push(FINDING_IDS.VAULT_NO_ESCAPE_HATCH);
+    // The same hatch is what makes zero-LTV poison dust recoverable. This vault never
+    // borrows, and Aave only enforces the zero-LTV rule while an account carries debt.
+    applied.push(FINDING_IDS.RISK_LTV0_POISON_DUST);
   }
 
   if (opts.claimRewards) {

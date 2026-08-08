@@ -387,6 +387,83 @@
         "{{CONTRACT}}.unpause();",
         "assertEq({{CONTRACT}}.totalAssets(), 0, \"paused deposit left partial state\");"
       ]
+    },
+    "AAVE-RISK-006": {
+      "testName": "test_SurvivesZeroLtvDust",
+      "title": "LTV-0 aToken poison dust can freeze withdrawals",
+      "presets": [
+        "aave-v3-erc4626-vault"
+      ],
+      "incidents": [
+        {
+          "name": "StErMi — Aave v3 LTV-0 bug bounty",
+          "url": "https://immunefi.com/bug-bounty/aave/"
+        },
+        {
+          "name": "ChainSecurity — Grove ALM zero-LTV review",
+          "url": "https://chainsecurity.com/audits/"
+        }
+      ],
+      "comments": [
+        "AAVE-RISK-006 — one wei of a zero-LTV aToken, sent by anyone, must not brick",
+        "redemptions. aTokens are ordinary transferable ERC20s, so this grief costs the",
+        "attacker a single wei and there is no permissionless way to push it back out.",
+        "The aTokens are acquired by genuinely supplying to Aave: aToken balances are",
+        "scaled, so a forged `deal` balance would not behave like a real transfer."
+      ],
+      "body": [
+        "uint256 shares = _deposit(alice, 100_000e6);",
+        "",
+        "address griefer = makeAddr(\"griefer\");",
+        "deal({{ASSET}}, griefer, 1_000e6);",
+        "vm.startPrank(griefer);",
+        "IERC20({{ASSET}}).approve(address({{POOL}}), 1_000e6);",
+        "{{POOL}}.supply({{ASSET}}, 1_000e6, griefer, 0);",
+        "IERC20({{ATOKEN}}).transfer(address({{CONTRACT}}), 1);",
+        "vm.stopPrank();",
+        "",
+        "vm.prank(alice);",
+        "uint256 received = {{CONTRACT}}.redeem(shares / 2, alice, alice);",
+        "assertGt(received, 0, \"1 wei of zero-LTV aToken bricked redemptions\");"
+      ]
+    },
+    "AAVE-RISK-006#receiver": {
+      "testName": "test_SurvivesZeroLtvDust",
+      "title": "LTV-0 aToken poison dust can freeze withdrawals",
+      "presets": [
+        "aave-v3-flashloan-receiver"
+      ],
+      "incidents": [
+        {
+          "name": "StErMi — Aave v3 LTV-0 bug bounty",
+          "url": "https://immunefi.com/bug-bounty/aave/"
+        }
+      ],
+      "comments": [
+        "AAVE-RISK-006 — anyone can push a zero-LTV aToken onto this contract. It must",
+        "stay inert: the callback gates keep holding and the dust cannot be leveraged",
+        "by whoever sent it."
+      ],
+      "body": [
+        "address griefer = makeAddr(\"griefer\");",
+        "deal({{ASSET}}, griefer, 1_000e6);",
+        "vm.startPrank(griefer);",
+        "IERC20({{ASSET}}).approve(address({{POOL}}), 1_000e6);",
+        "{{POOL}}.supply({{ASSET}}, 1_000e6, griefer, 0);",
+        "IERC20({{ATOKEN}}).transfer(address({{CONTRACT}}), 1);",
+        "vm.stopPrank();",
+        "",
+        "// The dust must not become a lever for a third-party flash loan.",
+        "vm.prank(griefer);",
+        "vm.expectRevert();",
+        "{{POOL}}.flashLoanSimple(address({{CONTRACT}}), {{ASSET}}, 1_000e6, {{PARAMS}}, 0);",
+        "",
+        "assertEq(",
+        "    IERC20({{ATOKEN}}).balanceOf(address({{CONTRACT}})),",
+        "    1,",
+        "    \"zero-LTV dust changed the contract's Aave position\"",
+        ");"
+      ]
     }
   }
 }
