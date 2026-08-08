@@ -17,12 +17,15 @@ import {
 } from '@/generator/attacks/assembleAttackTests';
 import snippetFile from '@/generated/attack-snippets.json';
 import AuditPanel from '@/components/AuditPanel';
-import { audit } from '@/lib/api';
+import { audit, compile } from '@/lib/api';
+import { buildProjectZip, downloadBlob, remixUrl } from '@/lib/exportProject';
 import {
   FINDING_TITLES,
   SEVERITY_BY_FINDING,
   REMAPPINGS,
+  SOLC_VERSION,
   type AuditResult,
+  type CompileResult,
   type FindingId,
   type GenerateOptions,
   type Preset,
@@ -53,6 +56,7 @@ export default function Home() {
   const set = <K extends keyof GenerateOptions>(k: K, v: GenerateOptions[K]) => {
     setOpts((o) => ({ ...o, [k]: v }));
     setEdited(null);
+    setCompileState(null);
   };
 
   // §A8 — one click, no typing on stage. Switching preset resets to that preset's
@@ -61,6 +65,7 @@ export default function Home() {
     setOpts(PRESET_DEFAULTS[p]);
     setEdited(null);
     setAuditState(null);
+    setCompileState(null);
   }
 
   // Pause, sweep and claim all need someone authorised to call them; the generator
@@ -75,6 +80,9 @@ export default function Home() {
   const [edited, setEdited] = useState<string | null>(null);
   const [auditState, setAuditState] = useState<{ result: AuditResult; live: boolean } | null>(null);
   const [auditing, setAuditing] = useState(false);
+  const [zipping, setZipping] = useState(false);
+  const [compileState, setCompileState] = useState<CompileResult | null>(null);
+  const [compiling, setCompiling] = useState(false);
 
   const result = useMemo(() => {
     try {
@@ -113,6 +121,29 @@ export default function Home() {
       setAuditing(false);
     }
   }
+  async function runCompile() {
+    setCompiling(true);
+    setCompileState(null);
+    try {
+      const { result } = await compile({ contractName: opts.name, source: contractSource });
+      setCompileState(result);
+    } catch (e) {
+      setCompileState({ ok: false, errors: [{ severity: 'error', message: (e as Error).message }] });
+    } finally {
+      setCompiling(false);
+    }
+  }
+
+  async function downloadZip() {
+    setZipping(true);
+    try {
+      const blob = await buildProjectZip(opts, SNIPPETS, result.applied);
+      downloadBlob(blob, `${opts.name}.zip`);
+    } finally {
+      setZipping(false);
+    }
+  }
+
   const filename =
     tab === 'contract'
       ? `src/${opts.name}.sol`
@@ -126,9 +157,32 @@ export default function Home() {
         <h1 className="text-lg font-semibold tracking-tight">
           HARNESS <span className="font-normal text-zinc-500">— OpenZeppelin Wizard, for DeFi</span>
         </h1>
-        <p className="mt-1 text-xs text-zinc-500">
-          Deterministic template composition. No AI in the generation path.
-        </p>
+        <div className="mt-1 flex items-end justify-between">
+          <p className="text-xs text-zinc-500">
+            Deterministic template composition. No AI in the generation path.
+          </p>
+          <div className="flex gap-2">
+            <a
+              href={result.error ? undefined : remixUrl(contractSource)}
+              target="_blank"
+              rel="noreferrer"
+              className={`rounded px-2.5 py-1 text-xs ring-1 transition ${
+                result.error
+                  ? 'pointer-events-none text-zinc-700 ring-zinc-800'
+                  : 'text-zinc-300 ring-zinc-700 hover:text-zinc-100 hover:ring-zinc-500'
+              }`}
+            >
+              Open in Remix ↗
+            </a>
+            <button
+              onClick={downloadZip}
+              disabled={zipping || !!result.error}
+              className="rounded px-2.5 py-1 text-xs text-zinc-300 ring-1 ring-zinc-700 transition hover:text-zinc-100 hover:ring-zinc-500 disabled:opacity-40"
+            >
+              {zipping ? 'Packaging…' : 'Download Foundry project'}
+            </button>
+          </div>
+        </div>
       </header>
 
       <div
@@ -307,6 +361,13 @@ export default function Home() {
                   : `${filename} · ${shown.split('\n').length} lines`}
               </span>
               <button
+                onClick={runCompile}
+                disabled={compiling || !!result.error}
+                className="rounded px-2.5 py-1 text-xs text-zinc-300 ring-1 ring-zinc-700 transition hover:text-zinc-100 hover:ring-zinc-500 disabled:opacity-40"
+              >
+                {compiling ? 'Compiling…' : 'Compile'}
+              </button>
+              <button
                 onClick={runAudit}
                 disabled={auditing || !!result.error}
                 className="rounded bg-emerald-500/90 px-2.5 py-1 text-xs font-medium text-zinc-950 transition hover:bg-emerald-400 disabled:opacity-40"
@@ -315,6 +376,39 @@ export default function Home() {
               </button>
             </div>
           </div>
+          {compileState && (
+            <div
+              className={`flex items-start gap-2 border-b px-5 py-2 text-xs ${
+                compileState.ok
+                  ? 'border-emerald-500/20 bg-emerald-500/5 text-emerald-300'
+                  : 'border-red-500/20 bg-red-500/5 text-red-300'
+              }`}
+            >
+              <span>{compileState.ok ? '✅' : '❌'}</span>
+              {compileState.ok ? (
+                <span>
+                  Compiled with solc {SOLC_VERSION} · {compileState.sizeBytes?.toLocaleString()} bytes
+                  {compileState.sizeBytes !== undefined && compileState.sizeBytes < 24576
+                    ? ' (under the 24,576 EIP-170 limit)'
+                    : ' — OVER the 24,576 EIP-170 limit'}{' '}
+                  · {compileState.abi?.length} ABI entries
+                </span>
+              ) : (
+                <pre className="flex-1 overflow-x-auto whitespace-pre-wrap font-mono text-[11px]">
+                  {compileState.errors
+                    .filter((e) => e.severity === 'error')
+                    .map((e) => e.message)
+                    .join('\n\n') || 'Compilation failed'}
+                </pre>
+              )}
+              <button
+                onClick={() => setCompileState(null)}
+                className="ml-auto text-zinc-500 hover:text-zinc-200"
+              >
+                ✕
+              </button>
+            </div>
+          )}
           {result.error ? (
             <p className="p-6 font-mono text-sm text-red-400">{result.error}</p>
           ) : (
