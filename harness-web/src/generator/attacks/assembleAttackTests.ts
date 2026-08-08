@@ -81,6 +81,8 @@ export function assembleAttackTests(
     '{{ASSET}}': 'ASSET',
     '{{ATOKEN}}': 'ATOKEN',
     '{{PARAMS}}': '_defaultParams()',
+    '{{PARAMS_STRUCT}}': '_defaultFlashParams()',
+    '{{OWNER}}': 'owner',
   };
 
   const ctorArgs = contract.constructorArgs.map((a) => {
@@ -138,12 +140,14 @@ export function assembleAttackTests(
     '    }',
     '',
     '    /// @dev A valid, benign FlashParams. Attack tests deviate from this deliberately.',
+    `    function _defaultFlashParams() internal pure returns (${opts.name}.FlashParams memory) {`,
+    `        return ${opts.name}.FlashParams({`,
+    ...paramFields(opts).map((f, i, a) => `            ${f}${i === a.length - 1 ? '' : ','}`),
+    '        });',
+    '    }',
+    '',
     '    function _defaultParams() internal pure returns (bytes memory) {',
-    `        return abi.encode(`,
-    `            ${opts.name}.FlashParams({`,
-    ...paramFields(opts).map((f, i, a) => `                ${f}${i === a.length - 1 ? '' : ','}`),
-    '            })',
-    '        );',
+    '        return abi.encode(_defaultFlashParams());',
     '    }',
   );
 

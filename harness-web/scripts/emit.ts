@@ -18,6 +18,7 @@ const opts: GenerateOptions = {
   routerAllowlist: true,
   claimRewards: false,
   sweepEscapeHatch: true,
+  ...JSON.parse(process.argv[3] ?? '{}'),
 };
 
 const { source, testNames, skipped } = assembleAttackTests(opts, snippets);

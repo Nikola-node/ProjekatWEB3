@@ -4,6 +4,12 @@ import { useMemo, useState } from 'react';
 import dynamic from 'next/dynamic';
 
 import { buildFlashLoanReceiver, printFlashLoanReceiver } from '@/generator/aave/flashLoanReceiver';
+import { printDeployScript } from '@/generator/aave/deployScript';
+import {
+  assembleAttackTests,
+  type AttackSnippetFile,
+} from '@/generator/attacks/assembleAttackTests';
+import snippetFile from '@/generated/attack-snippets.json';
 import {
   FINDING_TITLES,
   SEVERITY_BY_FINDING,
@@ -30,6 +36,10 @@ const DEFAULTS: GenerateOptions = {
   sweepEscapeHatch: true,
 };
 
+const SNIPPETS = snippetFile as unknown as AttackSnippetFile;
+
+type Tab = 'contract' | 'tests' | 'deploy';
+
 const SEVERITY_STYLE: Record<string, string> = {
   critical: 'bg-red-500/15 text-red-300 ring-red-500/30',
   high: 'bg-orange-500/15 text-orange-300 ring-orange-500/30',
@@ -46,17 +56,39 @@ export default function Home() {
   // rejects them outright when access is 'none', so don't offer them here.
   const noAccess = opts.access === 'none';
 
+  const [tab, setTab] = useState<Tab>('contract');
+
   const result = useMemo(() => {
     try {
+      const tests = assembleAttackTests(opts, SNIPPETS);
       return {
-        source: printFlashLoanReceiver(opts),
+        contract: printFlashLoanReceiver(opts),
+        tests: tests.source,
+        testNames: tests.testNames,
+        deploy: printDeployScript(opts),
         applied: buildFlashLoanReceiver(opts).appliedFindingIds,
         error: null as string | null,
       };
     } catch (e) {
-      return { source: '', applied: [] as FindingId[], error: (e as Error).message };
+      return {
+        contract: '',
+        tests: '',
+        testNames: [] as string[],
+        deploy: '',
+        applied: [] as FindingId[],
+        error: (e as Error).message,
+      };
     }
   }, [opts]);
+
+  const shown =
+    tab === 'contract' ? result.contract : tab === 'tests' ? result.tests : result.deploy;
+  const filename =
+    tab === 'contract'
+      ? `src/${opts.name}.sol`
+      : tab === 'tests'
+        ? `test/${opts.name}.attack.t.sol`
+        : `script/${opts.name}.s.sol`;
 
   return (
     <main className="min-h-screen bg-zinc-950 text-zinc-100">
@@ -177,16 +209,34 @@ export default function Home() {
         </aside>
 
         <section>
-          <div className="flex items-center justify-between border-b border-zinc-800 px-5 py-2.5">
-            <span className="font-mono text-xs text-zinc-400">src/{opts.name}.sol</span>
-            <span className="text-[11px] text-zinc-600">
-              {result.error ? 'invalid options' : `${result.source.split('\n').length} lines`}
+          <div className="flex items-center justify-between border-b border-zinc-800 px-5 py-2">
+            <div className="flex gap-1">
+              {(
+                [
+                  ['contract', 'Contract'],
+                  ['tests', `Attack tests (${result.testNames.length})`],
+                  ['deploy', 'Deploy script'],
+                ] as [Tab, string][]
+              ).map(([id, label]) => (
+                <button
+                  key={id}
+                  onClick={() => setTab(id)}
+                  className={`rounded px-2.5 py-1 text-xs transition ${
+                    tab === id ? 'bg-zinc-800 text-zinc-100' : 'text-zinc-500 hover:text-zinc-300'
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            <span className="font-mono text-[11px] text-zinc-600">
+              {result.error ? 'invalid options' : `${filename} · ${shown.split('\n').length} lines`}
             </span>
           </div>
           {result.error ? (
             <p className="p-6 font-mono text-sm text-red-400">{result.error}</p>
           ) : (
-            <CodeEditor value={result.source} readOnly />
+            <CodeEditor value={shown} readOnly />
           )}
         </section>
       </div>
