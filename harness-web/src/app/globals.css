@@ -1,9 +1,10 @@
 @import "tailwindcss";
 
 /*
- * Tokens lifted from OpenZeppelin Wizard's own bundle.css so this reads as a
- * sibling of the tool it extends rather than a lookalike. Same gray ramp, same
- * #4e5de4 selection blue, same 0.25rem spacing scale, same 20px pill radius.
+ * Tokens taken from OpenZeppelin Wizard's own bundle.css (gray ramp, #4e5de4
+ * selection blue, 20px pill radius, 0 2px 3px shadow), extended with a dark
+ * theme. Surfaces are swapped per theme; the code surface stays dark in both,
+ * because it has to read as a different material from the panels around it.
  */
 :root {
   --blue-1: #f5f6ff;
@@ -25,38 +26,69 @@
   --green-2: #12854f;
 
   --amber-1: #fff8eb;
-  --amber-2: #b25e09;
 
+  /* Themed surfaces. */
+  --page: var(--gray-1);
+  --card: #ffffff;
+  --card-2: var(--gray-1);
+  --border: var(--gray-3);
+  --border-soft: var(--gray-2);
   --text-color: #333333;
-  --text-small: 0.9375rem;
+  --text-muted: var(--gray-5);
+  --text-faint: var(--gray-4);
+  --tint: var(--blue-1);
 
-  /* Code surface is deliberately a warm near-black, not a blue-black: it has to
-     read as a distinct material from the white cards around it. */
-  --code-bg: #1c1b1a;
-  --code-fg: #e6e2dc;
-  --code-gutter: #55514c;
-  --code-line: #262422;
+  /* Code surface: warm near-black in both themes. Never blue-black. */
+  --code-bg: #1b1a19;
+  --code-fg: #e8e4dd;
+  --code-gutter: #56524c;
+  --code-line: #262421;
+
   --shadow: 0 2px 3px rgba(0, 0, 0, 0.1);
-
   --sans-serif: system-ui, sans-serif;
   --monospace: ui-monospace, "Cascadia Code", "Source Code Pro", Menlo, Consolas,
     "DejaVu Sans Mono", monospace;
+}
+
+[data-theme="dark"] {
+  --page: #141417;
+  --card: #1c1c21;
+  --card-2: #232329;
+  --border: #34343d;
+  --border-soft: #2a2a31;
+  --text-color: #e6e6ea;
+  --text-muted: #a8a8b4;
+  --text-faint: #7c7c88;
+  --tint: #24263f;
+
+  --blue-1: #24263f;
+  --blue-2: #6b78ee;
+  --blue-3: #a8b1ff;
+
+  --gray-2: #2a2a31;
+  --gray-3: #34343d;
+  --gray-4: #7c7c88;
+  --gray-5: #a8a8b4;
+  --gray-6: #e6e6ea;
+
+  --red-1: #3a1f21;
+  --red-3: #ff9b9b;
+  --green-1: #16301f;
+  --green-2: #7fd6a0;
+  --amber-1: #33291a;
+
+  --shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
 }
 
 @theme inline {
   --color-blue-1: var(--blue-1);
   --color-blue-2: var(--blue-2);
   --color-blue-3: var(--blue-3);
-  --color-gray-1: var(--gray-1);
   --color-gray-2: var(--gray-2);
   --color-gray-3: var(--gray-3);
   --color-gray-4: var(--gray-4);
   --color-gray-5: var(--gray-5);
   --color-gray-6: var(--gray-6);
-  --color-red-1: var(--red-1);
-  --color-red-2: var(--red-2);
-  --color-red-3: var(--red-3);
-  --color-ink: var(--text-color);
   --font-sans: var(--sans-serif);
   --font-mono: var(--monospace);
 }
@@ -67,111 +99,73 @@ body {
 }
 
 body {
-  background: var(--gray-1);
+  background: var(--page);
   color: var(--text-color);
   font-family: var(--sans-serif);
-  font-size: var(--text-small);
+  font-size: 1rem;
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
 }
 
-/* Wizard's own control chrome: pill tabs, hairline action buttons. */
-.pill {
-  padding: 0.5rem 1.125rem;
+/* Every control is the same object: a pill with a border, and a selected state.
+   Uniformity is the point — nothing should look like a different kind of thing. */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.5rem 1rem;
   font-size: 0.9375rem;
+  font-family: inherit;
+  line-height: 1.25;
   border-radius: 20px;
-  border: 0;
-  background-color: transparent;
+  border: 1px solid var(--border);
+  background: var(--card);
+  color: var(--text-color);
   cursor: pointer;
-  transition: background-color ease-in-out 0.2s;
+  white-space: nowrap;
+  transition:
+    background-color ease-in-out 0.15s,
+    border-color ease-in-out 0.15s;
 }
-.pill:hover {
-  background-color: var(--gray-2);
+.btn:hover:not(:disabled):not([data-selected="true"]) {
+  background: var(--card-2);
+  border-color: var(--text-faint);
 }
-.pill[data-selected="true"] {
-  background-color: var(--blue-2);
-  color: white;
-}
-
-.action-button {
-  padding: 0.5rem 0.9375rem;
-  font-size: 0.9375rem;
-  border-radius: 20px;
-  background-color: var(--gray-1);
-  border: 1px solid var(--gray-3);
-  color: var(--gray-6);
-  cursor: pointer;
-  transition: background-color ease-in-out 0.2s;
-}
-.action-button:hover:not(:disabled) {
-  background-color: var(--gray-2);
-}
-.action-button:disabled {
+.btn:disabled,
+.btn[aria-disabled="true"] {
   opacity: 0.45;
   cursor: not-allowed;
 }
-.action-button.primary {
-  background-color: var(--blue-2);
+.btn[data-selected="true"],
+.btn.primary {
+  background: var(--blue-2);
   border-color: var(--blue-2);
-  color: white;
-}
-.action-button.primary:hover:not(:disabled) {
-  background-color: var(--blue-3);
-}
-
-/* Section heading in the controls column. */
-.section-title {
-  color: var(--gray-4);
-  font-size: 0.8125rem;
-  font-weight: 500;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-}
-
-input[type="checkbox"],
-input[type="radio"] {
-  accent-color: var(--blue-2);
-  width: 1rem;
-  height: 1rem;
-  cursor: pointer;
-}
-
-/* File tabs read as buttons, not as text that happens to be clickable. */
-.file-tab {
-  padding: 0.4375rem 0.875rem;
-  font-size: 0.9375rem;
-  border-radius: 6px;
-  border: 1px solid var(--gray-3);
-  background: white;
-  color: var(--gray-6);
-  cursor: pointer;
-  transition: background-color ease-in-out 0.15s;
-}
-.file-tab:hover {
-  background: var(--gray-2);
-}
-.file-tab[data-selected="true"] {
-  background: var(--blue-1);
-  border-color: var(--blue-2);
-  color: var(--blue-3);
+  color: #ffffff;
   font-weight: 500;
 }
+.btn.primary:hover:not(:disabled) {
+  filter: brightness(1.08);
+}
+.btn.lg {
+  padding: 0.5625rem 1.25rem;
+  font-size: 1rem;
+}
 
-/* Segmented control for access, matching the file tabs' weight. */
 .segmented {
   display: flex;
-  border: 1px solid var(--gray-3);
-  border-radius: 6px;
+  border: 1px solid var(--border);
+  border-radius: 20px;
   overflow: hidden;
 }
 .segmented button {
   flex: 1;
-  padding: 0.4375rem 0.5rem;
+  padding: 0.5rem 0.5rem;
   font-size: 0.9375rem;
-  background: white;
-  color: var(--gray-6);
+  font-family: inherit;
+  background: var(--card);
+  color: var(--text-color);
   border: 0;
-  border-right: 1px solid var(--gray-3);
+  border-right: 1px solid var(--border);
   cursor: pointer;
   text-transform: capitalize;
   transition: background-color ease-in-out 0.15s;
@@ -180,17 +174,52 @@ input[type="radio"] {
   border-right: 0;
 }
 .segmented button:hover:not(:disabled):not([data-selected="true"]) {
-  background: var(--gray-2);
+  background: var(--card-2);
 }
 .segmented button[data-selected="true"] {
   background: var(--blue-2);
-  color: white;
+  color: #ffffff;
   font-weight: 500;
 }
 .segmented button:disabled {
-  color: var(--gray-4);
+  color: var(--text-faint);
   cursor: not-allowed;
-  background: var(--gray-1);
+  background: var(--card-2);
+}
+
+.card {
+  background: var(--card);
+  border-radius: 10px;
+  box-shadow: var(--shadow);
+}
+
+.section-title {
+  color: var(--text-faint);
+  font-size: 0.875rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+input[type="checkbox"] {
+  accent-color: var(--blue-2);
+  width: 1.125rem;
+  height: 1.125rem;
+  cursor: pointer;
+}
+
+.text-input {
+  width: 100%;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--card);
+  color: var(--text-color);
+  padding: 0.4375rem 0.625rem;
+  font-family: var(--monospace);
+  outline: none;
+}
+.text-input:focus {
+  border-color: var(--blue-2);
 }
 
 :focus-visible {
@@ -198,32 +227,15 @@ input[type="radio"] {
   outline-offset: 1px;
 }
 
-.scroll::-webkit-scrollbar {
-  width: 10px;
-  height: 10px;
+/* No visible scrollbars anywhere; scrolling still works. */
+* {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
 }
-.scroll::-webkit-scrollbar-track {
-  background: transparent;
-}
-.scroll::-webkit-scrollbar-thumb {
-  background: var(--gray-3);
-  border: 3px solid white;
-  border-radius: 99px;
-}
-.scroll-dark::-webkit-scrollbar {
-  width: 10px;
-  height: 10px;
-}
-.scroll-dark::-webkit-scrollbar-track {
-  background: transparent;
-}
-.scroll-dark::-webkit-scrollbar-thumb {
-  background: #3a3735;
-  border: 3px solid var(--code-bg);
-  border-radius: 99px;
-}
-.scroll::-webkit-scrollbar-thumb:hover {
-  background: var(--gray-4);
+*::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+  display: none;
 }
 
 @media (prefers-reduced-motion: reduce) {

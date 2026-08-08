@@ -11,6 +11,7 @@ import {
 } from '@/generator/attacks/assembleAttackTests';
 import snippetFile from '@/generated/attack-snippets.json';
 import AuditPanel from '@/components/AuditPanel';
+import ThemeToggle from '@/components/ThemeToggle';
 import { audit, compile } from '@/lib/api';
 import { buildProjectZip, downloadBlob, remixUrl } from '@/lib/exportProject';
 import {
@@ -28,7 +29,7 @@ import {
 // prerendered. `ssr: false` is only legal inside a Client Component.
 const CodeEditor = dynamic(() => import('@/components/CodeEditor'), {
   ssr: false,
-  loading: () => <div className="p-6 text-[var(--gray-4)]">Loading editor…</div>,
+  loading: () => <div className="p-6 text-[var(--text-faint)]">Loading editor…</div>,
 });
 
 const SNIPPETS = snippetFile as unknown as AttackSnippetFile;
@@ -36,8 +37,8 @@ const SNIPPETS = snippetFile as unknown as AttackSnippetFile;
 type Tab = 'contract' | 'tests' | 'deploy';
 
 const TAB_LABEL: Record<Preset, string> = {
-  'aave-v3-flashloan-receiver': 'Flash Loan Receiver',
-  'aave-v3-erc4626-vault': 'ERC-4626 Vault',
+  'aave-v3-flashloan-receiver': 'Aave V3 Flash Loan Receiver',
+  'aave-v3-erc4626-vault': 'Aave V3 ERC-4626 Vault',
 };
 
 const SEV_COLOR: Record<string, string> = {
@@ -141,11 +142,11 @@ export default function Home() {
     <div className="flex h-screen flex-col overflow-hidden p-4">
       {/* Preset tabs + actions, mirroring the wizard's top row. */}
       <div className="flex shrink-0 flex-wrap items-center gap-2 pb-4">
-        <div className="flex gap-1">
+        <div className="flex gap-2">
           {(Object.keys(PRESET_LABELS) as Preset[]).map((p) => (
             <button
               key={p}
-              className="pill font-medium"
+              className="btn lg"
               data-selected={opts.preset === p}
               onClick={() => selectPreset(p)}
             >
@@ -155,11 +156,12 @@ export default function Home() {
         </div>
 
         <div className="ml-auto flex items-center gap-2">
-          <button className="action-button" onClick={copyCode}>
+          <ThemeToggle />
+          <button className="btn" onClick={copyCode}>
             {copied ? 'Copied' : 'Copy to Clipboard'}
           </button>
           <a
-            className="action-button no-underline"
+            className="btn no-underline"
             href={result.error ? undefined : remixUrl(source)}
             target="_blank"
             rel="noreferrer"
@@ -167,18 +169,18 @@ export default function Home() {
           >
             Open in Remix
           </a>
-          <button className="action-button" onClick={downloadZip} disabled={busy === 'zip' || !!result.error}>
+          <button className="btn" onClick={downloadZip} disabled={busy === 'zip' || !!result.error}>
             {busy === 'zip' ? 'Packaging…' : 'Download'}
           </button>
           <button
-            className="action-button"
+            className="btn"
             onClick={runCompile}
             disabled={busy === 'compile' || !!result.error}
           >
             {busy === 'compile' ? 'Compiling…' : 'Compile'}
           </button>
           <button
-            className="action-button primary"
+            className="btn primary"
             onClick={runAudit}
             disabled={busy === 'audit' || !!result.error}
           >
@@ -190,8 +192,7 @@ export default function Home() {
       <div className="flex min-h-0 flex-1 gap-4">
         {/* Controls */}
         <aside
-          className="scroll w-[310px] shrink-0 overflow-y-auto rounded-lg bg-white p-5"
-          style={{ boxShadow: 'var(--shadow)' }}
+          className="card w-[336px] shrink-0 overflow-y-auto p-5"
         >
           <Group title="Settings">
             <Field label="Name">
@@ -199,7 +200,7 @@ export default function Home() {
                 value={opts.name}
                 onChange={(e) => set('name', e.target.value)}
                 spellCheck={false}
-                className="w-full rounded border border-[var(--gray-3)] px-2.5 py-1.5 font-mono text-[14px] outline-none focus:border-[var(--blue-2)]"
+                className="text-input text-[14.5px]"
               />
             </Field>
             <Field label="Underlying asset">
@@ -207,7 +208,7 @@ export default function Home() {
                 value={opts.asset ?? ''}
                 onChange={(e) => set('asset', e.target.value as `0x${string}`)}
                 spellCheck={false}
-                className="w-full rounded border border-[var(--gray-3)] px-2.5 py-1.5 font-mono text-[12.5px] outline-none focus:border-[var(--blue-2)]"
+                className="text-input text-[13px]"
               />
             </Field>
           </Group>
@@ -239,7 +240,7 @@ export default function Home() {
               onChange={() => set('sweepEscapeHatch', !opts.sweepEscapeHatch)}
             />
             {noAccess && (
-              <p className="pt-1.5 text-[13px] leading-snug text-[var(--gray-4)]">
+              <p className="pt-2 text-[14px] leading-snug text-[var(--text-faint)]">
                 Each of these sends tokens to a caller-chosen address. Without access control
                 they are the vulnerability, so they cannot be enabled.
               </p>
@@ -287,8 +288,8 @@ export default function Home() {
                   className="mt-[7px] h-[7px] w-[7px] shrink-0 rounded-full"
                   style={{ background: SEV_COLOR[SEVERITY_BY_FINDING[id]] }}
                 />
-                <span className="text-[13.5px] leading-snug text-[var(--gray-5)]">
-                  <span className="font-mono text-[12px] text-[var(--gray-4)]">{id}</span>{' '}
+                <span className="text-[14.5px] leading-snug text-[var(--text-muted)]">
+                  <span className="font-mono text-[12px] text-[var(--text-faint)]">{id}</span>{' '}
                   {FINDING_TITLES[id]}
                 </span>
               </div>
@@ -298,10 +299,9 @@ export default function Home() {
 
         {/* Code */}
         <main
-          className="flex min-w-0 flex-1 flex-col overflow-hidden rounded-lg bg-white"
-          style={{ boxShadow: 'var(--shadow)' }}
+          className="card flex min-w-0 flex-1 flex-col overflow-hidden"
         >
-          <div className="flex shrink-0 items-center gap-2 border-b border-[var(--gray-2)] px-3 py-2.5">
+          <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-[var(--border-soft)] p-3">
             {(
               [
                 ['contract', `src/${opts.name}.sol`],
@@ -312,7 +312,7 @@ export default function Home() {
               <button
                 key={id}
                 onClick={() => setTab(id)}
-                className="file-tab"
+                className="btn"
                 data-selected={tab === id}
               >
                 {label}
@@ -321,7 +321,7 @@ export default function Home() {
             {edited !== null && (
               <button
                 onClick={() => setEdited(null)}
-                className="ml-auto text-[14px] text-[var(--blue-2)] hover:underline"
+                className="ml-auto text-[15px] text-[var(--blue-2)] hover:underline"
               >
                 Edited · revert
               </button>
@@ -356,7 +356,7 @@ export default function Home() {
 
           <div className="min-h-0 flex-1">
             {result.error ? (
-              <p className="p-6 font-mono text-[13px] text-[var(--red-3)]">{result.error}</p>
+              <p className="p-6 font-mono text-[14px] text-[var(--red-3)]">{result.error}</p>
             ) : (
               <CodeEditor
                 value={shown}
@@ -389,7 +389,7 @@ function Group({
   last?: boolean;
 }) {
   return (
-    <section className={last ? '' : 'mb-5 border-b border-[var(--gray-2)] pb-5'}>
+    <section className={last ? '' : 'mb-5 border-b border-[var(--border-soft)] pb-5'}>
       <h2 className="section-title mb-2.5">{title}</h2>
       {children}
     </section>
@@ -399,7 +399,7 @@ function Group({
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <label className="mb-2 block last:mb-0">
-      <span className="mb-1 block text-[14px] text-[var(--gray-5)]">{label}</span>
+      <span className="mb-1.5 block text-[15px] text-[var(--text-muted)]">{label}</span>
       {children}
     </label>
   );
@@ -418,8 +418,8 @@ function Toggle({
 }) {
   return (
     <label
-      className={`flex items-center gap-2.5 py-[5px] text-[15px] ${
-        disabled ? 'cursor-not-allowed text-[var(--gray-4)]' : 'cursor-pointer'
+      className={`flex items-center gap-2.5 py-[5px] text-[16px] ${
+        disabled ? 'cursor-not-allowed text-[var(--text-faint)]' : 'cursor-pointer'
       }`}
     >
       <input type="checkbox" checked={checked} disabled={disabled} onChange={onChange} />
@@ -440,7 +440,7 @@ function Banner({
   const ok = tone === 'ok';
   return (
     <div
-      className="flex shrink-0 items-start gap-2 border-b px-4 py-2.5 text-[14px]"
+      className="flex shrink-0 items-start gap-2 border-b px-4 py-3 text-[15px]"
       style={{
         background: ok ? 'var(--green-1)' : 'var(--red-1)',
         borderColor: ok ? '#c3e9d4' : '#f7caca',

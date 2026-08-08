@@ -25,18 +25,17 @@ export default function AuditPanel({
 
   return (
     <aside
-      className="flex w-[368px] shrink-0 flex-col overflow-hidden rounded-lg bg-white"
-      style={{ boxShadow: 'var(--shadow)' }}
+      className="card flex w-[380px] shrink-0 flex-col overflow-hidden"
     >
-      <div className="flex shrink-0 items-center gap-2 border-b border-[var(--gray-2)] px-4 py-2.5">
+      <div className="flex shrink-0 items-center gap-2 border-b border-[var(--border-soft)] px-4 py-2.5">
         <h2 className="section-title">Audit</h2>
-        <span className="text-[14px] text-[var(--gray-5)]">
+        <span className="text-[15px] text-[var(--text-muted)]">
           {result.score.mitigated} mitigated, {result.score.triggered} triggered
         </span>
         {!live && (
           <span
             title="Agent B's /audit is not wired up yet; these come from a local mock using the same rule shape."
-            className="rounded-full bg-[var(--gray-2)] px-2 py-0.5 text-[12px] text-[var(--gray-5)]"
+            className="rounded-full bg-[var(--card-2)] px-2 py-0.5 text-[12px] text-[var(--text-muted)]"
           >
             mock
           </span>
@@ -44,7 +43,7 @@ export default function AuditPanel({
         <button
           onClick={onClose}
           aria-label="Close audit"
-          className="ml-auto text-[var(--gray-4)] hover:text-[var(--gray-6)]"
+          className="ml-auto text-[var(--text-faint)] hover:text-[var(--text-color)]"
         >
           ×
         </button>
@@ -56,38 +55,38 @@ export default function AuditPanel({
           const triggered = f.status === 'triggered';
           const sev = SEV[f.severity];
           return (
-            <div key={f.id} className="border-b border-[var(--gray-2)] last:border-0">
+            <div key={f.id} className="border-b border-[var(--border-soft)] last:border-0">
               <button
                 onClick={() => setOpen(expanded ? null : f.id)}
-                className="flex w-full items-start gap-2 px-4 py-3 text-left hover:bg-[var(--gray-1)]"
+                className="flex w-full items-start gap-2 px-4 py-3 text-left hover:bg-[var(--card-2)]"
               >
                 <span
                   className="mt-[2px] shrink-0 rounded-full px-2 py-0.5 text-[12px] font-medium capitalize"
                   style={
                     triggered
                       ? { background: sev.bg, color: sev.fg }
-                      : { background: 'var(--gray-2)', color: 'var(--gray-5)' }
+                      : { background: 'var(--card-2)', color: 'var(--text-muted)' }
                   }
                 >
                   {triggered ? f.severity : 'ok'}
                 </span>
                 <span className="min-w-0 flex-1">
                   <span
-                    className="block text-[14.5px] leading-snug"
+                    className="block text-[15.5px] leading-snug"
                     style={{ color: triggered ? 'var(--text-color)' : 'var(--gray-5)' }}
                   >
                     {f.title}
                   </span>
-                  <span className="mt-0.5 block font-mono text-[12px] text-[var(--gray-4)]">
+                  <span className="mt-0.5 block font-mono text-[12px] text-[var(--text-faint)]">
                     {f.id}
                   </span>
                 </span>
               </button>
 
               {expanded && (
-                <div className="space-y-3 bg-[var(--gray-1)] px-4 pb-4 pt-1.5 text-[14px] leading-relaxed">
+                <div className="space-y-3 bg-[var(--card-2)] px-4 pb-4 pt-2 text-[15px] leading-relaxed">
                   <p>{f.summary}</p>
-                  <p className="text-[var(--gray-5)]">{f.detail}</p>
+                  <p className="text-[var(--text-muted)]">{f.detail}</p>
 
                   <div>
                     <h3 className="section-title mb-1">Incidents</h3>
@@ -101,13 +100,13 @@ export default function AuditPanel({
                         >
                           {i.name}
                         </a>
-                        {i.loss && <span className="text-[var(--gray-4)]"> — {i.loss}</span>}
+                        {i.loss && <span className="text-[var(--text-faint)]"> — {i.loss}</span>}
                         {i.pocFolder && (
                           <a
                             href={`https://github.com/sanbir/evm-hack-registry/tree/main/${i.pocFolder}`}
                             target="_blank"
                             rel="noreferrer"
-                            className="ml-2 rounded-full bg-[var(--gray-2)] px-2 py-0.5 text-[12px] text-[var(--gray-6)] hover:bg-[var(--gray-3)]"
+                            className="ml-2 rounded-full bg-[var(--card-2)] px-2 py-0.5 text-[12px] text-[var(--text-color)] hover:bg-[var(--border)]"
                           >
                             Run the PoC
                           </a>
@@ -120,15 +119,15 @@ export default function AuditPanel({
                     <h3 className="section-title mb-1">
                       {triggered ? 'Remediation' : 'How this is mitigated'}
                     </h3>
-                    <p className="text-[var(--gray-5)]">{f.remediation}</p>
+                    <p className="text-[var(--text-muted)]">{f.remediation}</p>
                     {f.line && (
-                      <p className="mt-1 font-mono text-[12px] text-[var(--gray-4)]">
+                      <p className="mt-1 font-mono text-[12px] text-[var(--text-faint)]">
                         Matched line {f.line}
                       </p>
                     )}
                   </div>
 
-                  <p className="font-mono text-[12px] text-[var(--gray-4)]">
+                  <p className="font-mono text-[12px] text-[var(--text-faint)]">
                     {f.vulnClasses.join('  ·  ')}
                   </p>
                 </div>

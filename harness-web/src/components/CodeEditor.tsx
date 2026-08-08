@@ -11,55 +11,59 @@ import { tags as t } from '@lezer/highlight';
  * Always loaded via dynamic(..., { ssr: false }): EditorView's constructor needs
  * `document` and dies during prerender.
  *
- * The code surface is deliberately the one dark element on the page: a warm
- * near-black, not a blue-black, so it reads as a different material from the white
- * cards rather than a different product. Syntax carries real colour — on a dark
- * ground it can, without the muddiness the same hues have on white.
+ * theme="none" matters. @uiw/react-codemirror defaults to theme="light" and
+ * appends that extension AFTER anything passed in `extensions`, so a custom
+ * theme silently loses the cascade and the editor renders white regardless.
+ *
+ * The code surface is the one dark element in the light theme, and stays dark in
+ * the dark theme: a warm near-black so it reads as a different material from the
+ * panels rather than a different product.
  */
 
 const surface = EditorView.theme(
   {
     '&': {
-      backgroundColor: 'var(--code-bg)',
-      color: 'var(--code-fg)',
-      fontSize: '12px',
+      backgroundColor: '#1b1a19',
+      color: '#e8e4dd',
+      fontSize: '11.5px',
       height: '100%',
     },
     '.cm-content': {
       fontFamily: 'var(--monospace)',
-      padding: '12px 0',
-      lineHeight: '1.55',
+      padding: '10px 0',
+      lineHeight: '1.5',
+      caretColor: '#f0b45a',
     },
+    '.cm-editor': { backgroundColor: '#1b1a19' },
     '.cm-gutters': {
-      backgroundColor: 'var(--code-bg)',
+      backgroundColor: '#1b1a19',
       border: 'none',
-      color: 'var(--code-gutter)',
-      fontSize: '11px',
+      color: '#56524c',
+      fontSize: '10.5px',
     },
-    '.cm-lineNumbers .cm-gutterElement': { padding: '0 10px 0 14px' },
-    '.cm-activeLine': { backgroundColor: 'var(--code-line)' },
+    '.cm-lineNumbers .cm-gutterElement': { padding: '0 8px 0 12px' },
+    '.cm-activeLine': { backgroundColor: '#262421' },
     '.cm-activeLineGutter': { backgroundColor: 'transparent', color: '#8a847d' },
     '&.cm-focused': { outline: 'none' },
-    '.cm-cursor': { borderLeftColor: '#f0b45a' },
-    '.cm-selectionBackground, &.cm-focused .cm-selectionBackground, ::selection': {
-      backgroundColor: '#3d3a33 !important',
-    },
-    '.cm-scroller': { overflow: 'auto' },
+    '.cm-cursor, .cm-dropCursor': { borderLeftColor: '#f0b45a' },
+    '.cm-selectionBackground, &.cm-focused .cm-selectionBackground, .cm-content ::selection':
+      { backgroundColor: '#3d3a33' },
+    '.cm-scroller': { overflow: 'auto', fontFamily: 'var(--monospace)' },
   },
   { dark: true },
 );
 
 const syntax = HighlightStyle.define([
-  { tag: t.keyword, color: '#e888b8' },
-  { tag: [t.controlKeyword, t.moduleKeyword], color: '#e888b8' },
-  { tag: [t.string, t.special(t.string)], color: '#9fce6b' },
-  { tag: [t.number, t.bool, t.atom], color: '#f0a45a' },
-  { tag: t.comment, color: '#7d766d', fontStyle: 'italic' },
-  { tag: [t.typeName, t.className], color: '#63c8c0' },
-  { tag: [t.function(t.variableName), t.definition(t.variableName)], color: '#8ab6f0' },
-  { tag: t.variableName, color: '#e6e2dc' },
-  { tag: t.operator, color: '#c0b8ae' },
-  { tag: t.propertyName, color: '#e6e2dc' },
+  { tag: t.keyword, color: '#f291c0' },
+  { tag: [t.controlKeyword, t.moduleKeyword], color: '#f291c0' },
+  { tag: [t.string, t.special(t.string)], color: '#a8d977' },
+  { tag: [t.number, t.bool, t.atom], color: '#f5ad63' },
+  { tag: t.comment, color: '#807870', fontStyle: 'italic' },
+  { tag: [t.typeName, t.className], color: '#6fd4cb' },
+  { tag: [t.function(t.variableName), t.definition(t.variableName)], color: '#93bdf7' },
+  { tag: t.variableName, color: '#e8e4dd' },
+  { tag: t.operator, color: '#c6bdb2' },
+  { tag: t.propertyName, color: '#e8e4dd' },
 ]);
 
 export default function CodeEditor({
@@ -72,19 +76,22 @@ export default function CodeEditor({
   readOnly?: boolean;
 }) {
   return (
-    <CodeMirror
-      value={value}
-      height="100%"
-      extensions={[solidity, surface, syntaxHighlighting(syntax)]}
-      editable={!readOnly}
-      onChange={onChange}
-      className="scroll-dark h-full"
-      basicSetup={{
-        lineNumbers: true,
-        foldGutter: false,
-        highlightActiveLine: !readOnly,
-        highlightActiveLineGutter: !readOnly,
-      }}
-    />
+    <div className="h-full overflow-hidden" style={{ background: '#1b1a19' }}>
+      <CodeMirror
+        value={value}
+        height="100%"
+        theme="none"
+        extensions={[solidity, surface, syntaxHighlighting(syntax)]}
+        editable={!readOnly}
+        onChange={onChange}
+        className="h-full"
+        basicSetup={{
+          lineNumbers: true,
+          foldGutter: false,
+          highlightActiveLine: !readOnly,
+          highlightActiveLineGutter: !readOnly,
+        }}
+      />
+    </div>
   );
 }
