@@ -47,12 +47,43 @@ function validate(opts: GenerateOptions): void {
   if (opts.asset !== undefined && !ADDRESS_RE.test(opts.asset)) {
     messages.asset = 'Not a valid checksummed-length address';
   }
+  // Sweeping and reward-claiming both send tokens to a caller-chosen address.
+  // Ungated, each is a theft vector, so they cannot coexist with access: 'none'.
+  if (opts.access === 'none' && opts.sweepEscapeHatch) {
+    messages.sweepEscapeHatch = 'Requires access control — an ungated sweep drains the contract';
+  }
+  if (opts.access === 'none' && opts.claimRewards) {
+    messages.claimRewards = 'Requires access control — an ungated claim redirects rewards';
+  }
+  // `addPausable` routes pause()/unpause() through `requireAccessControl` too, so the
+  // same rewrite applies: an ungated pause is a free denial of service.
+  if (opts.access === 'none' && opts.pausable) {
+    messages.pausable = 'Requires access control — an ungated pause is a denial of service';
+  }
   if (Object.keys(messages).length > 0) {
     throw new OptionsError(messages);
   }
 }
 
 const accessOf = (opts: GenerateOptions) => (opts.access === 'none' ? false : opts.access);
+
+/**
+ * `requireAccessControl` silently rewrites `false` to `'ownable'`, on the reasonable
+ * assumption that a restricted function must be restricted by *something*. That would
+ * make `access: 'none'` emit an Ownable contract while the UI claimed otherwise, so
+ * we gate the call instead of the argument.
+ */
+function gate(
+  c: ContractBuilder,
+  fn: Parameters<typeof requireAccessControl>[1],
+  opts: GenerateOptions,
+  roleIdPrefix: string,
+  roleOwner: string | undefined,
+): void {
+  const access = accessOf(opts);
+  if (access === false) return;
+  requireAccessControl(c, fn, access, roleIdPrefix, roleOwner);
+}
 
 export function buildFlashLoanReceiver(opts: GenerateOptions): {
   contract: ContractBuilder;
@@ -290,7 +321,7 @@ function addInitiator(c: ContractBuilder, opts: GenerateOptions, applied: Findin
     fns.initiateFlashLoan,
   );
 
-  requireAccessControl(c, fns.initiateFlashLoan, accessOf(opts), 'OPERATOR', 'operator');
+  gate(c, fns.initiateFlashLoan, opts, 'OPERATOR', 'operator');
   applied.push(FINDING_IDS.FLASHLOAN_IDLE_FUNDS);
 
   if (opts.pausable) {
@@ -332,7 +363,7 @@ function addOperationalSurface(
       ['allowedRouters[router] = allowed;', 'emit RouterAllowed(router, allowed);'],
       fns.setRouterAllowed,
     );
-    requireAccessControl(c, fns.setRouterAllowed, accessOf(opts), 'ROUTER_ADMIN', undefined);
+    gate(c, fns.setRouterAllowed, opts, 'ROUTER_ADMIN', undefined);
   }
 
   if (opts.sweepEscapeHatch) {
@@ -367,7 +398,7 @@ function addOperationalSurface(
     c.addConstantOrImmutableOrErrorDefinition(
       'event Swept(address indexed token, address indexed to, uint256 amount);',
     );
-    requireAccessControl(c, fns.sweep, accessOf(opts), 'SWEEPER', undefined);
+    gate(c, fns.sweep, opts, 'SWEEPER', undefined);
     applied.push(FINDING_IDS.VAULT_NO_ESCAPE_HATCH);
   }
 
@@ -400,7 +431,7 @@ function addOperationalSurface(
     c.addConstructorArgument({ type: 'address', name: 'rewardsController' });
     c.addConstantOrImmutableOrErrorDefinition('address public immutable REWARDS_CONTROLLER;');
     c.addConstructorCode('REWARDS_CONTROLLER = rewardsController;');
-    requireAccessControl(c, fns.claimRewards, accessOf(opts), 'HARVESTER', undefined);
+    gate(c, fns.claimRewards, opts, 'HARVESTER', undefined);
     applied.push(FINDING_IDS.VAULT_REWARDS_UNCLAIMABLE);
   }
 

@@ -42,6 +42,10 @@ export default function Home() {
   const set = <K extends keyof GenerateOptions>(k: K, v: GenerateOptions[K]) =>
     setOpts((o) => ({ ...o, [k]: v }));
 
+  // Pause, sweep and claim all need someone authorised to call them; the generator
+  // rejects them outright when access is 'none', so don't offer them here.
+  const noAccess = opts.access === 'none';
+
   const result = useMemo(() => {
     try {
       return {
@@ -88,7 +92,13 @@ export default function Home() {
               {(['none', 'ownable', 'roles'] as const).map((a) => (
                 <button
                   key={a}
-                  onClick={() => set('access', a)}
+                  onClick={() =>
+                    setOpts((o) =>
+                      a === 'none'
+                        ? { ...o, access: a, pausable: false, claimRewards: false, sweepEscapeHatch: false }
+                        : { ...o, access: a },
+                    )
+                  }
                   className={`flex-1 rounded-md px-2 py-1.5 text-xs capitalize ring-1 transition ${
                     opts.access === a
                       ? 'bg-zinc-100 text-zinc-900 ring-zinc-100'
@@ -106,6 +116,7 @@ export default function Home() {
               label="Pausable"
               hint="Local kill switch (AAVE-RISK-010)"
               on={opts.pausable}
+              disabled={noAccess}
               onClick={() => set('pausable', !opts.pausable)}
             />
             <Toggle
@@ -118,14 +129,22 @@ export default function Home() {
               label="Claim rewards"
               hint="RewardsController claim path (AAVE-VLT-008)"
               on={opts.claimRewards}
+              disabled={noAccess}
               onClick={() => set('claimRewards', !opts.claimRewards)}
             />
             <Toggle
               label="Sweep escape hatch"
               hint="Recover airdrops and dust (AAVE-VLT-009)"
               on={opts.sweepEscapeHatch}
+              disabled={noAccess}
               onClick={() => set('sweepEscapeHatch', !opts.sweepEscapeHatch)}
             />
+            {noAccess && (
+              <p className="pt-1 text-[11px] leading-snug text-amber-400/80">
+                Unavailable without access control — each of these sends tokens to a
+                caller-chosen address or halts the contract.
+              </p>
+            )}
           </div>
 
           <div className="border-t border-zinc-800 pt-4">
@@ -191,14 +210,20 @@ function Toggle({
   hint,
   on,
   onClick,
+  disabled = false,
 }: {
   label: string;
   hint: string;
   on: boolean;
   onClick: () => void;
+  disabled?: boolean;
 }) {
   return (
-    <button onClick={onClick} className="flex w-full items-start gap-2.5 text-left">
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      className="flex w-full items-start gap-2.5 text-left disabled:cursor-not-allowed disabled:opacity-40"
+    >
       <span
         className={`mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded border text-[10px] ${
           on ? 'border-emerald-500 bg-emerald-500 text-zinc-950' : 'border-zinc-700'
