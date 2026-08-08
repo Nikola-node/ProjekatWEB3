@@ -1,7 +1,7 @@
 import { createPublicClient, http, formatUnits } from 'viem';
 
 import { ADDRESS_RE, type GenerateOptions } from '@/types';
-import type { SettingAdvice, VaultAnalysis, Verdict } from '@/lib/vaultAdvice';
+import type { SettingAdvice, SettingSweep, SweepPoint, VaultAnalysis, Verdict } from '@/lib/vaultAdvice';
 
 /**
  * Vault settings advisor.
@@ -131,6 +131,16 @@ export async function POST(req: Request): Promise<Response> {
     adviseOffset(opts, decimals),
   ];
 
+  // The advise* functions are pure given the market snapshot, so the same market
+  // read supports evaluating neighbouring values — one RPC round trip, many
+  // verdicts. That turns a point judgement into a frontier: not just "this is
+  // wrong" but "it is fine up to here".
+  const sweeps: SettingSweep[] = [
+    sweepDepositCap(opts, decimals, headroom, availableLiquidity),
+    sweepFee(opts, supplyApyPct, reserveFactorPct),
+    sweepOffset(opts, decimals),
+  ];
+
   const analysis: VaultAnalysis = {
     asset: { address: asset, symbol: symbolFor(asset), decimals },
     market: {
@@ -144,9 +154,100 @@ export async function POST(req: Request): Promise<Response> {
       paused,
     },
     advice,
+    sweeps,
   };
 
   return json(analysis, 200);
+}
+
+/**
+ * Describes the band of sensible values. Direction-agnostic on purpose: a deposit
+ * cap gets worse as it rises, a virtual-share offset gets worse as it falls, so
+ * anything that assumes "higher is worse" is wrong for half the settings.
+ */
+function frontierOf(points: SweepPoint[], fmtValue: (n: number) => string): string {
+  const okIdx = points.map((p, i) => (p.verdict === 'ok' ? i : -1)).filter((i) => i >= 0);
+  if (okIdx.length === 0) return 'No value in this range is sensible against the current market.';
+  if (okIdx.length === points.length) return 'Every value in this range is sensible.';
+
+  const lo = points[okIdx[0]];
+  const hi = points[okIdx[okIdx.length - 1]];
+  const badBelow = okIdx[0] > 0;
+  const badAbove = okIdx[okIdx.length - 1] < points.length - 1;
+
+  if (badBelow && badAbove) {
+    return `Sensible between ${fmtValue(lo.value)} and ${fmtValue(hi.value)}; outside that, reconsider.`;
+  }
+  if (badAbove) return `Sensible up to ${fmtValue(hi.value)}; above that, reconsider.`;
+  return `Sensible from ${fmtValue(lo.value)} upward; below that, reconsider.`;
+}
+
+function sweepDepositCap(
+  opts: GenerateOptions,
+  decimals: number,
+  headroom: number,
+  availableLiquidity: number,
+): SettingSweep {
+  const current = opts.depositCap ? Number(opts.depositCap) / 10 ** decimals : null;
+  const top = Math.max(headroom * 1.5, 1);
+  const points: SweepPoint[] = Array.from({ length: 13 }, (_, i) => {
+    const value = Math.round((top / 12) * i);
+    const probe = { ...opts, depositCap: `${value}${'0'.repeat(decimals)}` };
+    return {
+      value,
+      label: fmt(value),
+      verdict: adviseDepositCap(probe, decimals, headroom, availableLiquidity).verdict,
+    };
+  });
+  if (current !== null) markNearest(points, current);
+  return {
+    setting: 'depositCap',
+    label: 'Deposit cap',
+    points,
+    frontier: frontierOf(points, (n) => fmt(n)),
+  };
+}
+
+function sweepFee(opts: GenerateOptions, apy: number, rf: number): SettingSweep {
+  const points: SweepPoint[] = Array.from({ length: 11 }, (_, i) => {
+    const value = i * 100;
+    return {
+      value,
+      label: `${value}`,
+      verdict: adviseFee({ ...opts, feeBps: value }, apy, rf).verdict,
+    };
+  });
+  markNearest(points, opts.feeBps ?? 0);
+  return {
+    setting: 'feeBps',
+    label: 'Performance fee (bps)',
+    points,
+    frontier: frontierOf(points, (n) => `${n} bps`),
+  };
+}
+
+function sweepOffset(opts: GenerateOptions, decimals: number): SettingSweep {
+  const points: SweepPoint[] = Array.from({ length: 13 }, (_, i) => ({
+    value: i,
+    label: `${i}`,
+    verdict: adviseOffset({ ...opts, decimalsOffset: i }, decimals).verdict,
+  }));
+  markNearest(points, opts.decimalsOffset ?? 6);
+  return {
+    setting: 'decimalsOffset',
+    label: 'Virtual share offset',
+    points,
+    frontier: frontierOf(points, (n) => `offset ${n}`),
+  };
+}
+
+/** Flags the swept point closest to what the user actually set. */
+function markNearest(points: SweepPoint[], current: number): void {
+  let best = 0;
+  for (let i = 1; i < points.length; i++) {
+    if (Math.abs(points[i].value - current) < Math.abs(points[best].value - current)) best = i;
+  }
+  points[best].current = true;
 }
 
 /**

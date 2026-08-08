@@ -1,0 +1,27 @@
+{
+  "name": "harness-mcp",
+  "version": "0.1.0",
+  "description": "MCP server exposing HARNESS: audit Aave v3 Solidity against a corpus of documented findings, generate hardened contracts, and check vault settings against live Aave.",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsx src/index.ts",
+    "start": "node dist/index.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "module",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.30.0",
+    "zod": "^4.4.3"
+  },
+  "private": true,
+  "bin": {
+    "harness-mcp": "dist/index.js"
+  },
+  "devDependencies": {
+    "@types/node": "^26.2.0",
+    "tsx": "^4.23.11",
+    "typescript": "^7.0.2"
+  }
+}

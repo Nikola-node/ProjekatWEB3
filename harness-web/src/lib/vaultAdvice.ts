@@ -14,6 +14,22 @@ export interface SettingAdvice {
   detail: string;
 }
 
+/** One point on a setting's sweep: what the verdict would be at this value. */
+export interface SweepPoint {
+  value: number;
+  label: string;
+  verdict: Verdict;
+  current?: boolean;
+}
+
+export interface SettingSweep {
+  setting: SettingAdvice['setting'];
+  label: string;
+  points: SweepPoint[];
+  /** Prose describing where the verdict flips — the frontier, not a point judgement. */
+  frontier: string;
+}
+
 export interface VaultAnalysis {
   asset: { address: string; symbol: string; decimals: number };
   market: {
@@ -27,6 +43,7 @@ export interface VaultAnalysis {
     paused: boolean;
   };
   advice: SettingAdvice[];
+  sweeps: SettingSweep[];
 }
 
 export async function analyzeVault(opts: GenerateOptions): Promise<VaultAnalysis> {
