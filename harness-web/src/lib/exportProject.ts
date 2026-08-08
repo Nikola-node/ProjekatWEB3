@@ -17,6 +17,15 @@ import { EVM_VERSION, REMAPPINGS, SOLC_VERSION, type GenerateOptions } from '@/t
  * shape of its source instead.
  */
 
+/**
+ * The demo environment's PUBLIC RPC. It serves archive state at FORK_BLOCK, which a
+ * free public endpoint will not. Deliberately not the Admin RPC — that one carries
+ * tenderly_setBalance and friends and must never reach a downloadable file.
+ */
+const DEMO_RPC =
+  'https://virtual.mainnet.eu.rpc.tenderly.co/petnica2026/project/harness-mainnet-1786200683168';
+const FORK_BLOCK = '25710954';
+
 const FOUNDRY_TOML = `[profile.default]
 src = "src"
 test = "test"
@@ -48,13 +57,18 @@ echo
 echo "Now set MAINNET_RPC_URL and run:  forge test -vv"
 `;
 
-const ENV_EXAMPLE = `# Any archive-capable mainnet endpoint, or the Tenderly Virtual Environment public RPC.
-MAINNET_RPC_URL=
+const ENV_EXAMPLE = `# The HARNESS demo Tenderly Virtual Environment (public RPC, read-only: it rejects
+# admin cheatcodes). Swap it for your own endpoint for anything beyond a trial run.
+#
+# IMPORTANT: this must be an ARCHIVE-capable endpoint if TENDERLY_FORK_BLOCK is set.
+# Free public RPCs prune old state and answer 403 "Archive requests require a
+# personal token" once the pinned block is more than ~128 blocks behind head.
+MAINNET_RPC_URL=${DEMO_RPC}
 
-# Pinned so the attack suite is reproducible: an unpinned fork drifts with mainnet
-# and a suite that is green today goes red tomorrow for reasons unrelated to the code.
-# Matches the block the Tenderly Virtual Environment forks at.
-TENDERLY_FORK_BLOCK=25710954
+# Pinned so the suite is reproducible: an unpinned fork drifts with mainnet, and a
+# suite that is green today goes red tomorrow for reasons unrelated to the code.
+# Comment this out to fork at latest, which works on any RPC including free ones.
+TENDERLY_FORK_BLOCK=${FORK_BLOCK}
 
 # Only needed for script/*.s.sol broadcasts.
 PRIVATE_KEY=
