@@ -60,6 +60,19 @@ export function assembleAttackTests(
     else skipped.push(id);
   }
 
+  // A schema mismatch filters every snippet out rather than throwing, so without
+  // this the assembler happily emits a test file containing no tests — which looks
+  // like success everywhere downstream. Fail loudly instead.
+  if (chosen.length === 0) {
+    const keys = Object.keys(file.snippets ?? {});
+    throw new Error(
+      keys.length === 0
+        ? `No snippets found. Expected ${file.schemaVersion ?? 'an unknown schema'} with a top-level "snippets" object.`
+        : `Emitted 0 tests for preset '${opts.preset}'. ${keys.length} snippet(s) were present but none matched — ` +
+          `check that keys are finding IDs (optionally '<ID>#<variant>') and that 'presets' includes this preset.`,
+    );
+  }
+
   const ctorArgs = contract.constructorArgs.map((a) => {
     const bound = scaffold.bindings[a.name];
     if (!bound) throw new Error(`No test binding for constructor argument '${a.name}'`);
