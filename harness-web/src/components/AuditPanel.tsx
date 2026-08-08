@@ -3,11 +3,11 @@
 import { useState } from 'react';
 import type { AuditResult } from '@/types';
 
-const SEVERITY_STYLE: Record<string, string> = {
-  critical: 'bg-red-500/15 text-red-300 ring-red-500/30',
-  high: 'bg-orange-500/15 text-orange-300 ring-orange-500/30',
-  medium: 'bg-amber-500/15 text-amber-300 ring-amber-500/30',
-  low: 'bg-sky-500/15 text-sky-300 ring-sky-500/30',
+const SEV_COLOR: Record<string, string> = {
+  critical: 'var(--crit)',
+  high: '#d98d3f',
+  medium: 'var(--accent)',
+  low: '#7fa6c9',
 };
 
 export default function AuditPanel({
@@ -24,115 +24,113 @@ export default function AuditPanel({
   );
 
   return (
-    <aside className="flex h-[calc(100vh-73px)] flex-col border-l border-zinc-800">
-      <div className="flex items-center justify-between border-b border-zinc-800 px-4 py-2.5">
-        <div className="flex items-center gap-2.5 text-xs">
-          <span className="text-emerald-400">{result.score.mitigated} mitigated</span>
-          <span className="text-zinc-700">·</span>
-          <span className={result.score.triggered > 0 ? 'text-red-400' : 'text-zinc-500'}>
-            {result.score.triggered} triggered
+    <aside className="flex w-[356px] shrink-0 flex-col border-l border-[var(--line-soft)]">
+      <div className="flex shrink-0 items-center gap-3 border-b border-[var(--line-soft)] px-4 py-2">
+        <span className="font-mono text-[11px] text-[var(--muted)]">
+          <span style={{ color: 'var(--ok)' }}>{result.score.mitigated}</span> mitigated
+          <span className="mx-1.5 text-[var(--line)]">/</span>
+          <span style={{ color: result.score.triggered ? 'var(--crit)' : 'var(--faint)' }}>
+            {result.score.triggered}
+          </span>{' '}
+          triggered
+        </span>
+        {!live && (
+          <span
+            title="Agent B's /audit is not wired up; these come from a local mock of the same rule shape."
+            className="rounded-[2px] border border-[var(--accent-dim)] px-1 py-px font-mono text-[9px] text-[var(--accent)]"
+          >
+            mock
           </span>
-        </div>
-        <div className="flex items-center gap-2">
-          {!live && (
-            <span
-              title="Agent B's /audit is not wired up yet; these results come from a local mock of the same rule shape."
-              className="rounded bg-amber-500/10 px-1.5 py-0.5 text-[10px] text-amber-400 ring-1 ring-amber-500/25"
-            >
-              mock
-            </span>
-          )}
-          <button onClick={onClose} className="text-xs text-zinc-500 hover:text-zinc-200">
-            ✕
-          </button>
-        </div>
+        )}
+        <button
+          onClick={onClose}
+          className="ml-auto text-[var(--faint)] transition hover:text-[var(--text)]"
+        >
+          ×
+        </button>
       </div>
 
-      <div className="flex-1 divide-y divide-zinc-800/70 overflow-y-auto">
+      <div className="scroll flex-1 overflow-y-auto">
         {result.findings.map((f) => {
           const expanded = open === f.id;
+          const triggered = f.status === 'triggered';
           return (
-            <div key={f.id}>
+            <div key={f.id} className="border-b border-[var(--line-soft)]">
               <button
                 onClick={() => setOpen(expanded ? null : f.id)}
-                className="flex w-full items-start gap-2.5 px-4 py-2.5 text-left hover:bg-zinc-900/60"
+                className="flex w-full items-start gap-2.5 px-4 py-2.5 text-left transition hover:bg-[var(--panel)]"
               >
-                <span className="mt-0.5 text-xs">
-                  {f.status === 'mitigated' ? '✅' : '❌'}
-                </span>
+                <span
+                  className="mt-[5px] h-[7px] w-[7px] shrink-0 rounded-[1px]"
+                  style={{
+                    background: triggered ? SEV_COLOR[f.severity] : 'transparent',
+                    border: triggered ? 'none' : '1px solid var(--line)',
+                  }}
+                />
                 <span className="min-w-0 flex-1">
-                  <span className="flex items-center gap-1.5">
+                  <span className="flex items-baseline gap-2">
+                    <span className="font-mono text-[10px] text-[var(--faint)]">{f.id}</span>
                     <span
-                      className={`rounded px-1 py-px font-mono text-[9px] uppercase ring-1 ${
-                        SEVERITY_STYLE[f.severity]
-                      }`}
+                      className="font-mono text-[9px] uppercase"
+                      style={{ color: triggered ? SEV_COLOR[f.severity] : 'var(--faint)' }}
                     >
-                      {f.severity}
+                      {triggered ? f.severity : 'ok'}
                     </span>
-                    <span className="font-mono text-[10px] text-zinc-500">{f.id}</span>
                   </span>
-                  <span className="mt-1 block text-xs leading-snug text-zinc-200">{f.title}</span>
+                  <span
+                    className="mt-1 block text-[12px] leading-snug"
+                    style={{ color: triggered ? 'var(--text)' : 'var(--muted)' }}
+                  >
+                    {f.title}
+                  </span>
                 </span>
               </button>
 
               {expanded && (
-                <div className="space-y-3 bg-zinc-900/40 px-4 pb-4 pt-1 text-[11px] leading-relaxed">
-                  <p className="text-zinc-300">{f.summary}</p>
-                  <p className="text-zinc-500">{f.detail}</p>
+                <div className="space-y-3 bg-[var(--panel)] px-4 pb-4 pt-1 text-[11.5px] leading-relaxed">
+                  <p className="text-[var(--muted)]">{f.summary}</p>
+                  <p className="text-[var(--faint)]">{f.detail}</p>
 
                   <div>
-                    <p className="mb-1 text-[10px] uppercase tracking-wide text-zinc-600">
-                      Historical incidents
-                    </p>
-                    <ul className="space-y-1">
-                      {f.incidents.map((i) => (
-                        <li key={i.url}>
+                    <p className="label pb-1">incidents</p>
+                    {f.incidents.map((i) => (
+                      <p key={i.url} className="py-px">
+                        <a
+                          href={i.url}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-[var(--muted)] underline decoration-[var(--line)] underline-offset-2 hover:text-[var(--text)] hover:decoration-[var(--faint)]"
+                        >
+                          {i.name}
+                        </a>
+                        {i.loss && <span className="text-[var(--faint)]"> · {i.loss}</span>}
+                        {i.pocFolder && (
                           <a
-                            href={i.url}
+                            href={`https://github.com/sanbir/evm-hack-registry/tree/main/${i.pocFolder}`}
                             target="_blank"
                             rel="noreferrer"
-                            className="text-sky-400 hover:underline"
+                            className="ml-1.5 font-mono text-[9.5px] text-[var(--accent)] hover:underline"
                           >
-                            {i.name}
+                            run poc →
                           </a>
-                          {i.loss && <span className="text-zinc-500"> — {i.loss}</span>}
-                          {i.pocFolder && (
-                            <a
-                              href={`https://github.com/sanbir/evm-hack-registry/tree/main/${i.pocFolder}`}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="ml-1.5 rounded bg-zinc-800 px-1 py-px font-mono text-[9px] text-zinc-300 hover:bg-zinc-700"
-                            >
-                              ▶ runnable PoC
-                            </a>
-                          )}
-                        </li>
-                      ))}
-                    </ul>
+                        )}
+                      </p>
+                    ))}
                   </div>
 
                   <div>
-                    <p className="mb-1 text-[10px] uppercase tracking-wide text-zinc-600">
-                      {f.status === 'mitigated' ? 'How this is mitigated' : 'Remediation'}
-                    </p>
-                    <p className="text-zinc-400">{f.remediation}</p>
+                    <p className="label pb-1">{triggered ? 'remediation' : 'how this is mitigated'}</p>
+                    <p className="text-[var(--muted)]">{f.remediation}</p>
                     {f.line && (
-                      <p className="mt-1 font-mono text-[10px] text-zinc-600">
-                        matched at line {f.line}
+                      <p className="mt-1 font-mono text-[10px] text-[var(--faint)]">
+                        matched line {f.line}
                       </p>
                     )}
                   </div>
 
-                  <div className="flex flex-wrap gap-1">
-                    {f.vulnClasses.map((v) => (
-                      <span
-                        key={v}
-                        className="rounded bg-zinc-800/80 px-1.5 py-px font-mono text-[9px] text-zinc-400"
-                      >
-                        {v}
-                      </span>
-                    ))}
-                  </div>
+                  <p className="font-mono text-[9.5px] text-[var(--faint)]">
+                    {f.vulnClasses.join('  ')}
+                  </p>
                 </div>
               )}
             </div>

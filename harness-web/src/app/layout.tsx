@@ -13,9 +13,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "HARNESS — OpenZeppelin Wizard, for DeFi",
-  description:
-    "Generate hardened Aave v3 integration contracts, the attacks on them, and the proof they survive.",
+  title: "harness/aave-v3",
+  description: "Aave v3 integration contracts that ship with the attacks on them.",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
