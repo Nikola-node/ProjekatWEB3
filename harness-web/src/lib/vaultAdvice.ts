@@ -33,14 +33,22 @@ export interface SettingSweep {
 export interface VaultAnalysis {
   asset: { address: string; symbol: string; decimals: number };
   market: {
+    /** Which protocol the numbers were read from, e.g. 'Aave v3' or 'Morpho Blue'. */
+    protocol: string;
+    /** Rendered, not numeric: Morpho Blue markets have no supply cap at all. */
     supplyCap: string;
     supplied: string;
     headroom: string;
     availableLiquidity: string;
     supplyApyPct: number;
-    reserveFactorPct: number;
+    /** What the protocol itself takes off the top, before the vault's own fee. */
+    protocolFeePct: number;
+    /** Names that cut: Aave calls it a reserve factor, Morpho calls it a market fee. */
+    protocolFeeLabel: string;
     frozen: boolean;
     paused: boolean;
+    /** Facts that only one protocol has — LLTV and utilization for Morpho. */
+    extra: { label: string; value: string }[];
   };
   advice: SettingAdvice[];
   sweeps: SettingSweep[];

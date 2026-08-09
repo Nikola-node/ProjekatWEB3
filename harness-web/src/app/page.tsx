@@ -103,6 +103,10 @@ export default function Home() {
 
   const noAccess = opts.access === 'none';
   const vault = opts.preset === 'aave-v3-erc4626-vault' || opts.preset === 'morpho-blue-vault';
+  // Aave's RewardsController has no Morpho equivalent, so morphoVault.ts ignores
+  // claimRewards entirely. Leaving the toggle on screen gave it a control that
+  // silently did nothing — worse than not offering it.
+  const morpho = opts.preset === 'morpho-blue-vault';
 
   const result = useMemo(() => {
     try {
@@ -258,12 +262,14 @@ export default function Home() {
                 onChange={() => set('routerAllowlist', !opts.routerAllowlist)}
               />
             )}
-            <Toggle
-              label="Claim rewards"
-              checked={opts.claimRewards}
-              disabled={noAccess}
-              onChange={() => set('claimRewards', !opts.claimRewards)}
-            />
+            {!morpho && (
+              <Toggle
+                label="Claim rewards"
+                checked={opts.claimRewards}
+                disabled={noAccess}
+                onChange={() => set('claimRewards', !opts.claimRewards)}
+              />
+            )}
             <Toggle
               label="Sweep escape hatch"
               checked={opts.sweepEscapeHatch}

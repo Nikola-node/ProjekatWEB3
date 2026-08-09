@@ -31,7 +31,7 @@ export default function VaultAdvicePanel({
       <div className="flex shrink-0 items-center gap-2 border-b border-[var(--border-soft)] px-4 py-2.5">
         <h2 className="section-title">Vault settings</h2>
         <span className="text-[14px] text-[var(--text-muted)]">
-          against live Aave {analysis.asset.symbol}
+          against live {m.protocol} {analysis.asset.symbol}
         </span>
         <button
           onClick={onClose}
@@ -52,7 +52,12 @@ export default function VaultAdvicePanel({
           <Stat k="Headroom" v={m.headroom} />
           <Stat k="Available liquidity" v={m.availableLiquidity} />
           <Stat k="Supply APY" v={`${m.supplyApyPct.toFixed(2)}%`} />
-          <Stat k="Reserve factor" v={`${m.reserveFactorPct.toFixed(0)}%`} />
+          <Stat k={m.protocolFeeLabel} v={`${m.protocolFeePct.toFixed(0)}%`} />
+          {/* Facts only one protocol has. Morpho carries utilisation and LLTV;
+              Aave sends an empty array and the grid is unchanged. */}
+          {m.extra.map((e) => (
+            <Stat key={e.label} k={e.label} v={e.value} />
+          ))}
         </dl>
         {(m.frozen || m.paused) && (
           <p className="mt-2 text-[13px]" style={{ color: 'var(--red-3)' }}>
