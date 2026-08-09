@@ -112,6 +112,35 @@ Budi iskren, to ostavlja bolji utisak nego izbegavanje:
 
 ---
 
+## Ako pitaju „šta ako promenim asset?"
+
+Ovo je dobro pitanje da ti postave — imaš jak odgovor.
+
+> „Zavisi od protokola, i baš to alat pokazuje.
+>
+> Na Aave-u promeniš asset i savetnik te prati sam — Aave rezervu identifikuje
+> adresa tokena, jedan token je jedna rezerva. WETH: druge decimale, drugi cap,
+> drugi APY, i preporuka za offset se menja jer zavisi od decimala.
+>
+> Na Morpho-u ne. Morpho market **nije** token — market je hash pet parametara:
+> loan token, kolateral, oracle, IRM i LLTV. Isti USDC postoji u više Morpho
+> marketa sa različitim oracle-om i različitim LLTV-om. Zato „promeni asset" na
+> Morpho-u nije dobro definisana operacija — to znači „izaberi drugi market".
+>
+> Zato vault pinuje market u konstruktoru, a savetnik odbija da analizira ako
+> asset nije loan token tog marketa. To je isti nalaz koji generator brani,
+> MRPH-MKT-018. Da smo tiho analizirali neki drugi market, dali bismo ti brojke
+> o marketu koji tvoj ugovor nikad ne dodirne."
+
+**Ako pritisnu „a kako onda menjam Morpho market?":**
+
+> „Konstruktor prima svih pet parametara, pa market biraš pri deployu. Ono što ne
+> možeš je da ga promeniš posle — nema settera, i test `test_MarketParamsArePinned`
+> to proverava."
+
+*(Demo: prebaci asset na WETH dok si na Morpho presetu — dobiješ objašnjenje, ne
+brojke. Odbijanje je funkcija, ne ograničenje.)*
+
 ## Tehnički detalji za potpitanja
 
 - **Zašto nije LLM?** Determinizam. Generator je čista funkcija; isti ulaz → isti izlaz,
