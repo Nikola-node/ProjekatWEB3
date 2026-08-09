@@ -1,4 +1,5 @@
 import { mockAudit } from '@/mocks/auditFindings';
+import { PRESET_LIST } from '@/types';
 import type { AuditRequest, Preset } from '@/types';
 
 /**
@@ -13,7 +14,6 @@ import type { AuditRequest, Preset } from '@/types';
 
 export const runtime = 'nodejs';
 
-const PRESETS: Preset[] = ['aave-v3-flashloan-receiver', 'aave-v3-erc4626-vault'];
 
 export async function POST(req: Request): Promise<Response> {
   let body: Partial<AuditRequest>;
@@ -26,8 +26,8 @@ export async function POST(req: Request): Promise<Response> {
   if (typeof body.source !== 'string' || !body.source.trim()) {
     return json({ error: 'source is required' }, 400);
   }
-  if (!body.preset || !PRESETS.includes(body.preset)) {
-    return json({ error: `preset must be one of: ${PRESETS.join(', ')}` }, 400);
+  if (!body.preset || !PRESET_LIST.includes(body.preset)) {
+    return json({ error: `preset must be one of: ${PRESET_LIST.join(', ')}` }, 400);
   }
 
   return json(mockAudit(body.source, body.preset), 200);

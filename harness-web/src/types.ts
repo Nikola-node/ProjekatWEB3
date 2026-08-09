@@ -19,7 +19,25 @@
 // 1. Wire format (§6)
 // ---------------------------------------------------------------------------
 
-export type Preset = 'aave-v3-flashloan-receiver' | 'aave-v3-erc4626-vault';
+export type Preset =
+  | 'aave-v3-flashloan-receiver'
+  | 'aave-v3-erc4626-vault'
+  | 'morpho-blue-vault'; // added after v1; additive, existing values unchanged
+
+/**
+ * The single enumeration of Preset. Every whitelist derives from this.
+ *
+ * Adding 'morpho-blue-vault' to the union above did not update the three
+ * hand-written copies of it in the API routes and the MCP server, so those
+ * endpoints rejected the new preset with a 400 while the UI accepted it. A
+ * const array typed as Preset[] fails to compile if a member is dropped, and
+ * cannot silently go stale when one is added.
+ */
+export const PRESET_LIST: Preset[] = [
+  'aave-v3-flashloan-receiver',
+  'aave-v3-erc4626-vault',
+  'morpho-blue-vault',
+];
 
 export interface GenerateOptions {
   preset: Preset;
@@ -109,6 +127,10 @@ export const FINDING_IDS = {
   FLASHLOAN_IDLE_FUNDS: 'AAVE-FL-013',
   SWAP_MISSING_MIN_AMOUNT_OUT: 'AAVE-SWP-014',
   UNCHECKED_EXTERNAL_CALL: 'AAVE-DEP-015',
+  // Morpho Blue. Not in §8.1 — the protocol has footguns Aave does not.
+  MORPHO_ASSETS_SHARES_EXCLUSIVE: 'MRPH-VLT-016',
+  MORPHO_CALLBACK_UNGATED: 'MRPH-CB-017',
+  MORPHO_MARKET_PARAMS_UNPINNED: 'MRPH-MKT-018',
 } as const;
 
 export type FindingId = (typeof FINDING_IDS)[keyof typeof FINDING_IDS];
@@ -130,6 +152,9 @@ export const FINDING_TITLES: Record<FindingId, string> = {
   'AAVE-FL-013': 'Idle funds held on the flash-loan receiver',
   'AAVE-SWP-014': 'Missing minAmountOut on the swap leg',
   'AAVE-DEP-015': 'Unchecked external call return value',
+  'MRPH-VLT-016': 'Morpho assets/shares not mutually exclusive',
+  'MRPH-CB-017': 'Morpho callback not gated to the Morpho singleton',
+  'MRPH-MKT-018': 'Market parameters not pinned at construction',
 };
 
 export const SEVERITY_BY_FINDING: Record<FindingId, Finding['severity']> = {
@@ -148,6 +173,9 @@ export const SEVERITY_BY_FINDING: Record<FindingId, Finding['severity']> = {
   'AAVE-FL-013': 'medium',
   'AAVE-SWP-014': 'high',
   'AAVE-DEP-015': 'medium',
+  'MRPH-VLT-016': 'high',
+  'MRPH-CB-017': 'critical',
+  'MRPH-MKT-018': 'high',
 };
 
 // ---------------------------------------------------------------------------
@@ -162,6 +190,7 @@ export const REMAPPINGS: string[] = [
   '@aave/core-v3/=lib/aave-v3-core/',
   '@aave/periphery-v3/=lib/aave-v3-periphery/',
   'forge-std/=lib/forge-std/src/',
+  '@morpho-org/morpho-blue/=lib/morpho-blue/',
 ];
 
 /** Every import string the generator is allowed to emit. Agent B resolves these. */
@@ -174,6 +203,8 @@ export const IMPORT_PATHS = {
   ATOKEN: '@aave/core-v3/contracts/interfaces/IAToken.sol',
   DATA_TYPES: '@aave/core-v3/contracts/protocol/libraries/types/DataTypes.sol',
   REWARDS_CONTROLLER: '@aave/periphery-v3/contracts/rewards/interfaces/IRewardsController.sol',
+  MORPHO: '@morpho-org/morpho-blue/src/interfaces/IMorpho.sol',
+  MORPHO_BALANCES_LIB: '@morpho-org/morpho-blue/src/libraries/periphery/MorphoBalancesLib.sol',
   IERC20: '@openzeppelin/contracts/token/ERC20/IERC20.sol',
   IERC20_METADATA: '@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol',
   SAFE_ERC20: '@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol',

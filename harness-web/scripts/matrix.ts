@@ -1,9 +1,10 @@
 import { printPreset } from '../src/generator';
-import type { GenerateOptions, Preset } from '../src/types';
+import { PRESET_LIST } from '../src/types';
+import type { GenerateOptions } from '../src/types';
 
 const out: Record<string, { content: string }> = {};
 let n = 0, rejected = 0;
-for (const preset of ['aave-v3-flashloan-receiver', 'aave-v3-erc4626-vault'] as Preset[])
+for (const preset of PRESET_LIST)
   for (const access of ['none', 'ownable', 'roles'] as const)
     for (const pausable of [false, true])
       for (const routerAllowlist of [false, true])

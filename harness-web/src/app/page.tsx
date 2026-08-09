@@ -41,6 +41,7 @@ type Tab = 'contract' | 'tests' | 'deploy';
 const TAB_LABEL: Record<Preset, string> = {
   'aave-v3-flashloan-receiver': 'Aave V3 Flash Loan Receiver',
   'aave-v3-erc4626-vault': 'Aave V3 ERC-4626 Vault',
+  'morpho-blue-vault': 'Morpho Blue Vault',
 };
 
 const SEV_COLOR: Record<string, string> = {
@@ -101,7 +102,7 @@ export default function Home() {
   }
 
   const noAccess = opts.access === 'none';
-  const vault = opts.preset === 'aave-v3-erc4626-vault';
+  const vault = opts.preset === 'aave-v3-erc4626-vault' || opts.preset === 'morpho-blue-vault';
 
   const result = useMemo(() => {
     try {

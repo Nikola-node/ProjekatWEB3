@@ -396,16 +396,16 @@
       ],
       "incidents": [
         {
-          "name": "StErMi — Aave v3 LTV-0 bug bounty",
+          "name": "StErMi \u2014 Aave v3 LTV-0 bug bounty",
           "url": "https://immunefi.com/bug-bounty/aave/"
         },
         {
-          "name": "ChainSecurity — Grove ALM zero-LTV review",
+          "name": "ChainSecurity \u2014 Grove ALM zero-LTV review",
           "url": "https://chainsecurity.com/audits/"
         }
       ],
       "comments": [
-        "AAVE-RISK-006 — one wei of a zero-LTV aToken, sent by anyone, must not brick",
+        "AAVE-RISK-006 \u2014 one wei of a zero-LTV aToken, sent by anyone, must not brick",
         "redemptions. aTokens are ordinary transferable ERC20s, so this grief costs the",
         "attacker a single wei and there is no permissionless way to push it back out.",
         "The aTokens are acquired by genuinely supplying to Aave: aToken balances are",
@@ -435,12 +435,12 @@
       ],
       "incidents": [
         {
-          "name": "StErMi — Aave v3 LTV-0 bug bounty",
+          "name": "StErMi \u2014 Aave v3 LTV-0 bug bounty",
           "url": "https://immunefi.com/bug-bounty/aave/"
         }
       ],
       "comments": [
-        "AAVE-RISK-006 — anyone can push a zero-LTV aToken onto this contract. It must",
+        "AAVE-RISK-006 \u2014 anyone can push a zero-LTV aToken onto this contract. It must",
         "stay inert: the callback gates keep holding and the dust cannot be leveraged",
         "by whoever sent it."
       ],
@@ -463,6 +463,219 @@
         "    1,",
         "    \"zero-LTV dust changed the contract's Aave position\"",
         ");"
+      ]
+    },
+    "MRPH-VLT-016": {
+      "testName": "test_AssetsAndSharesAreMutuallyExclusive",
+      "title": "Morpho assets/shares not mutually exclusive",
+      "presets": [
+        "morpho-blue-vault"
+      ],
+      "incidents": [
+        {
+          "name": "Morpho Blue ErrorsLib.INCONSISTENT_INPUT",
+          "url": "https://docs.morpho.org/"
+        }
+      ],
+      "comments": [
+        "MRPH-VLT-016 \u2014 supply and withdraw take BOTH an assets and a shares argument,",
+        "and exactly one must be zero. Setting both is not a rounding nuisance, it is a",
+        "hard revert: \"inconsistent input\". The vault names the zero rather than",
+        "passing a bare literal, so the intent is visible at every call site."
+      ],
+      "body": [
+        "// The vault's own supply path is well-formed: a deposit lands.",
+        "_deposit(alice, 1_000e6);",
+        "assertGt({{CONTRACT}}.totalAssets(), 0, \"supply reverted or credited nothing\");",
+        "",
+        "// And this is what the malformed call does, straight to Morpho.",
+        "// marketParams() is itself a call, so it must be hoisted above expectRevert \u2014",
+        "// otherwise the expectation binds to it instead of to supply().",
+        "MarketParams memory mp = {{CONTRACT}}.marketParams();",
+        "deal({{ASSET}}, address(this), 2e6);",
+        "IERC20({{ASSET}}).approve({{MORPHO}}, type(uint256).max);",
+        "",
+        "vm.expectRevert(bytes(\"inconsistent input\"));",
+        "IMorpho({{MORPHO}}).supply(mp, 1e6, 1e6, address(this), \"\");"
+      ]
+    },
+    "MRPH-CB-017": {
+      "testName": "test_NoMorphoCallbackSurface",
+      "title": "Morpho callback not gated to the Morpho singleton",
+      "presets": [
+        "morpho-blue-vault"
+      ],
+      "incidents": [
+        {
+          "name": "Morpho Blue IMorphoCallbacks",
+          "url": "https://docs.morpho.org/"
+        },
+        {
+          "name": "Same shape as the Aave callback bug that drained DODO",
+          "url": "https://github.com/sherlock-audit/2023-01-derby-judging/issues/150",
+          "pocFolder": "2021-03-dodo_flashloan_exp"
+        }
+      ],
+      "comments": [
+        "MRPH-CB-017 \u2014 passing non-empty `data` to Morpho makes it call back into",
+        "this contract. An ungated callback is the same Critical that drained DODO on",
+        "Aave. The vault passes empty bytes and implements no callback at all, so",
+        "there is no entry point to gate and nothing to get wrong."
+      ],
+      "body": [
+        "// No fallback and no callback: an unknown selector has nowhere to land.",
+        "(bool ok,) = address({{CONTRACT}}).call(",
+        "    abi.encodeWithSignature(\"onMorphoSupply(uint256,bytes)\", uint256(1), bytes(\"\"))",
+        ");",
+        "assertFalse(ok, \"vault exposes a Morpho callback an attacker could drive\");",
+        "",
+        "(ok,) = address({{CONTRACT}}).call(",
+        "    abi.encodeWithSignature(\"onMorphoFlashLoan(uint256,bytes)\", uint256(1), bytes(\"\"))",
+        ");",
+        "assertFalse(ok, \"vault exposes a Morpho flash-loan callback\");"
+      ]
+    },
+    "MRPH-MKT-018": {
+      "testName": "test_MarketParamsArePinned",
+      "title": "Market parameters not pinned at construction",
+      "presets": [
+        "morpho-blue-vault"
+      ],
+      "incidents": [
+        {
+          "name": "Morpho Blue MarketParamsLib \u2014 a market IS the hash of its parameters",
+          "url": "https://docs.morpho.org/"
+        }
+      ],
+      "comments": [
+        "MRPH-MKT-018 \u2014 Morpho identifies a market by the hash of five fields. A vault",
+        "that accepts them per call can be aimed at a market with a different oracle or",
+        "LLTV while every function signature stays identical. Pinning them as",
+        "immutables means the market cannot be repointed after deployment."
+      ],
+      "body": [
+        "MarketParams memory p = {{CONTRACT}}.marketParams();",
+        "assertEq(p.loanToken, {{ASSET}}, \"loan token drifted from the vault asset\");",
+        "assertEq(p.collateralToken, COLLATERAL);",
+        "assertEq(p.oracle, ORACLE);",
+        "assertEq(p.irm, IRM);",
+        "assertEq(p.lltv, LLTV);",
+        "",
+        "// There is no setter: nothing on the ABI can change any of these.",
+        "(bool ok,) = address({{CONTRACT}}).call(",
+        "    abi.encodeWithSignature(\"setMarketParams(address,address,address,uint256)\",",
+        "        address(1), address(1), address(1), uint256(1))",
+        ");",
+        "assertFalse(ok, \"market parameters are mutable after deployment\");"
+      ]
+    },
+    "AAVE-VLT-004#morpho": {
+      "testName": "test_WithdrawAccountsActualAmount",
+      "title": "Morpho withdraw() return value ignored",
+      "presets": [
+        "morpho-blue-vault"
+      ],
+      "incidents": [
+        {
+          "name": "Connext Amarok (Code4rena M-15)",
+          "url": "https://code4rena.com/reports/2022-06-connext"
+        }
+      ],
+      "comments": [
+        "AAVE-VLT-004 \u2014 Morpho's withdraw returns what it ACTUALLY paid out, which is",
+        "short when the market is fully borrowed. Crediting the requested figure instead",
+        "mints value that was never received, and the last exiter discovers it."
+      ],
+      "body": [
+        "_deposit(alice, 1_000e6);",
+        "uint256 before = IERC20({{ASSET}}).balanceOf(alice);",
+        "",
+        "vm.prank(alice);",
+        "{{CONTRACT}}.withdraw(500e6, alice, alice);",
+        "",
+        "assertEq(IERC20({{ASSET}}).balanceOf(alice) - before, 500e6, \"credited amount != amount Morpho returned\");"
+      ]
+    },
+    "AAVE-VLT-011#morpho": {
+      "testName": "test_ReceiverOwnerNotConflated",
+      "title": "ERC-4626 receiver and owner conflated",
+      "presets": [
+        "morpho-blue-vault"
+      ],
+      "incidents": [
+        {
+          "name": "Taichi ERC-4626 series, Pt.5",
+          "url": "https://docs.openzeppelin.com/contracts/5.x/erc4626"
+        }
+      ],
+      "comments": [
+        "AAVE-VLT-011 \u2014 redeem(shares, receiver, owner) burns from `owner` and pays",
+        "`receiver`. Mixing them burns Alice's shares and pays Bob."
+      ],
+      "body": [
+        "uint256 shares = _deposit(alice, 1_000e6);",
+        "",
+        "vm.prank(alice);",
+        "{{CONTRACT}}.redeem(shares, bob, alice);",
+        "",
+        "assertEq({{CONTRACT}}.balanceOf(alice), 0, \"owner's shares were not burned\");",
+        "assertGt(IERC20({{ASSET}}).balanceOf(bob), 0, \"receiver was not paid\");",
+        "assertEq(IERC20({{ASSET}}).balanceOf(alice), 0, \"assets went to the owner, not the receiver\");"
+      ]
+    },
+    "AAVE-VLT-009#morpho": {
+      "testName": "test_SweepCannotTouchPrincipal",
+      "title": "No ERC20 escape hatch for airdrops / stuck tokens",
+      "presets": [
+        "morpho-blue-vault"
+      ],
+      "incidents": [
+        {
+          "name": "Morpho integration checklist",
+          "url": "https://docs.morpho.org/overview/resources/audits/"
+        }
+      ],
+      "comments": [
+        "AAVE-VLT-009 \u2014 a hatch that can reach the principal is not a hatch, it is the",
+        "vulnerability."
+      ],
+      "body": [
+        "_deposit(alice, 1_000e6);",
+        "",
+        "vm.prank({{OWNER}});",
+        "vm.expectRevert(abi.encodeWithSignature(\"CannotSweepPrincipal(address)\", {{ASSET}}));",
+        "{{CONTRACT}}.sweep({{ASSET}}, {{OWNER}});"
+      ]
+    },
+    "AAVE-RISK-010#morpho": {
+      "testName": "test_PausedDepositRevertsCleanly",
+      "title": "Supply/borrow cap and pause reverts unhandled",
+      "presets": [
+        "morpho-blue-vault"
+      ],
+      "incidents": [
+        {
+          "name": "Sherlock Index #267",
+          "url": "https://github.com/sherlock-audit/2023-01-index-judging/issues/267"
+        }
+      ],
+      "comments": [
+        "AAVE-RISK-010 \u2014 halting must be clean and reversible, leaving no partial state."
+      ],
+      "body": [
+        "vm.prank({{OWNER}});",
+        "{{CONTRACT}}.pause();",
+        "",
+        "deal({{ASSET}}, alice, 1_000e6);",
+        "vm.startPrank(alice);",
+        "IERC20({{ASSET}}).approve(address({{CONTRACT}}), 1_000e6);",
+        "vm.expectRevert(abi.encodeWithSignature(\"EnforcedPause()\"));",
+        "{{CONTRACT}}.deposit(1_000e6, alice);",
+        "vm.stopPrank();",
+        "",
+        "vm.prank({{OWNER}});",
+        "{{CONTRACT}}.unpause();",
+        "assertEq({{CONTRACT}}.totalAssets(), 0, \"paused deposit left partial state\");"
       ]
     }
   }

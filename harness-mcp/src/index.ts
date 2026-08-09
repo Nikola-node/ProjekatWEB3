@@ -25,7 +25,14 @@ const API_BASE = (process.env.HARNESS_API_BASE ?? 'https://harness-web-livid.ver
   '',
 );
 
-const PRESETS = ['aave-v3-flashloan-receiver', 'aave-v3-erc4626-vault'] as const;
+// Kept in step with PRESET_LIST in harness-web/src/types.ts. This package does not
+// share that module, so the API validates the preset too — a stale copy here is a
+// bad error message, never an accepted request for a preset the server rejects.
+const PRESETS = [
+  'aave-v3-flashloan-receiver',
+  'aave-v3-erc4626-vault',
+  'morpho-blue-vault',
+] as const;
 
 async function callApi<T>(path: string, body: unknown): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, {

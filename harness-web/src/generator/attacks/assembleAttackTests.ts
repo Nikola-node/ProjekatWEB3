@@ -79,14 +79,22 @@ export function assembleAttackTests(
     return bound;
   });
 
+  // Only the Aave presets resolve a Pool through the addresses provider.
+  const aave = opts.preset !== 'morpho-blue-vault';
+
   const lines: string[] = [
     '// SPDX-License-Identifier: MIT',
     `pragma solidity ${SOLIDITY_PRAGMA};`,
     '',
     `import {Test} from "${IMPORT_PATHS.FORGE_TEST}";`,
-    `import {IPool} from "${IMPORT_PATHS.POOL}";`,
-    `import {IPoolAddressesProvider} from "${IMPORT_PATHS.POOL_ADDRESSES_PROVIDER}";`,
+    ...(aave
+      ? [
+          `import {IPool} from "${IMPORT_PATHS.POOL}";`,
+          `import {IPoolAddressesProvider} from "${IMPORT_PATHS.POOL_ADDRESSES_PROVIDER}";`,
+        ]
+      : []),
     `import {IERC20} from "${IMPORT_PATHS.IERC20}";`,
+    ...(scaffold.imports ?? []),
     `import {${opts.name}} from "../src/${opts.name}.sol";`,
     '',
     `/// @title ${opts.name}AttackTest`,
@@ -94,8 +102,12 @@ export function assembleAttackTests(
     '/// @notice incident, cited in the comment above it. These run against real Aave',
     '/// @notice on a mainnet fork — not against a mock.',
     `contract ${opts.name}AttackTest is Test {`,
-    '    IPoolAddressesProvider internal constant PROVIDER =',
-    `        IPoolAddressesProvider(${MAINNET.POOL_ADDRESSES_PROVIDER});`,
+    ...(aave
+      ? [
+          '    IPoolAddressesProvider internal constant PROVIDER =',
+          `        IPoolAddressesProvider(${MAINNET.POOL_ADDRESSES_PROVIDER});`,
+        ]
+      : []),
     ...scaffold.constants.map((l) => `    ${l}`),
   ];
 

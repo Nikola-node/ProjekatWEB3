@@ -14,6 +14,11 @@ import { FINDING_IDS, type AuditResult, type Finding, type Preset } from '@/type
 const FLASHLOAN: Preset[] = ['aave-v3-flashloan-receiver'];
 const VAULT: Preset[] = ['aave-v3-erc4626-vault'];
 const BOTH: Preset[] = ['aave-v3-flashloan-receiver', 'aave-v3-erc4626-vault'];
+const MORPHO: Preset[] = ['morpho-blue-vault'];
+/** Both vaults. Separate from BOTH because a vault finding is not a flash-loan finding. */
+const ANY_VAULT: Preset[] = ['aave-v3-erc4626-vault', 'morpho-blue-vault'];
+/** Every preset. Only for findings that are about Solidity, not about a protocol. */
+const ALL: Preset[] = [...BOTH, 'morpho-blue-vault'];
 
 export const MOCK_FINDINGS: Finding[] = [
   {
@@ -73,7 +78,7 @@ export const MOCK_FINDINGS: Finding[] = [
         url: 'https://github.com/sanbir/evm-hack-registry',
       },
     ],
-    detect: [{ kind: 'absence', pattern: 'using SafeERC20', appliesTo: BOTH }],
+    detect: [{ kind: 'absence', pattern: 'using SafeERC20', appliesTo: ALL }],
     remediation: 'Route every token interaction through SafeERC20.',
   },
   {
@@ -102,7 +107,7 @@ export const MOCK_FINDINGS: Finding[] = [
         pattern: 'return ATOKEN\\.balanceOf\\(address\\(this\\)\\)',
         appliesTo: VAULT,
       },
-      { kind: 'absence', pattern: '_decimalsOffset', appliesTo: VAULT },
+      { kind: 'absence', pattern: '_decimalsOffset', appliesTo: ANY_VAULT },
     ],
     remediation:
       'Track assets internally and override _decimalsOffset() to a non-zero value.',
@@ -119,7 +124,11 @@ export const MOCK_FINDINGS: Finding[] = [
     incidents: [
       { name: 'Connext Amarok (Code4rena M-15)', url: 'https://code4rena.com/reports/2022-06-connext' },
     ],
-    detect: [{ kind: 'absence', pattern: 'POOL.withdraw', appliesTo: VAULT }],
+    detect: [
+      { kind: 'absence', pattern: 'POOL\.withdraw', appliesTo: VAULT },
+      // Morpho's withdraw returns (assetsWithdrawn, sharesWithdrawn) for the same reason.
+      { kind: 'absence', pattern: 'MORPHO\.withdraw', appliesTo: MORPHO },
+    ],
     remediation: 'Use the uint256 that withdraw() returns, never the amount requested.',
   },
   {
@@ -137,7 +146,7 @@ export const MOCK_FINDINGS: Finding[] = [
       {
         kind: 'absence',
         pattern: 'super\\._withdraw\\(caller, receiver, owner',
-        appliesTo: VAULT,
+        appliesTo: ANY_VAULT,
       },
     ],
     remediation: 'Override _deposit/_withdraw and delegate to super with the arguments unchanged.',
@@ -198,7 +207,7 @@ export const MOCK_FINDINGS: Finding[] = [
         url: 'https://github.com/sherlock-audit/2023-01-index-judging/issues/267',
       },
     ],
-    detect: [{ kind: 'absence', pattern: 'whenNotPaused', appliesTo: BOTH }],
+    detect: [{ kind: 'absence', pattern: 'whenNotPaused', appliesTo: ALL }],
     remediation: 'Add a local pause and handle Aave reverts as an expected condition.',
   },
   {
@@ -215,7 +224,7 @@ export const MOCK_FINDINGS: Finding[] = [
         url: 'https://docs.morpho.org/overview/resources/audits/',
       },
     ],
-    detect: [{ kind: 'absence', pattern: 'function sweep', appliesTo: BOTH }],
+    detect: [{ kind: 'absence', pattern: 'function sweep', appliesTo: ALL }],
     remediation: 'Add a gated sweep that cannot touch principal.',
   },
   {
@@ -232,6 +241,56 @@ export const MOCK_FINDINGS: Finding[] = [
     ],
     detect: [{ kind: 'absence', pattern: 'claimAllRewards', appliesTo: BOTH }],
     remediation: 'Expose a gated claim that forwards aToken addresses to the RewardsController.',
+  },
+  {
+    id: FINDING_IDS.MORPHO_CALLBACK_UNGATED,
+    title: 'Morpho callback not gated to the Morpho singleton',
+    severity: 'critical',
+    vulnClasses: ['vuln/access-control/missing-auth', 'vuln/logic/reentrancy'],
+    summary:
+      'A non-empty `data` argument makes Morpho call back into your contract mid-transaction.',
+    detail:
+      'Morpho supply/repay/supplyCollateral/flashLoan re-enter the caller when data is non-empty. An implemented-but-ungated callback is the same Critical that drained DODO on Aave: the attacker drives it with parameters of their choosing while the position is half-updated. Passing empty bytes and implementing no callback removes the entry point rather than guarding it.',
+    incidents: [
+      {
+        name: 'DODO MarginTrading (Sherlock #150) - same shape, Aave flashLoan',
+        url: 'https://github.com/sherlock-audit/2023-01-derby-judging/issues/150',
+        pocFolder: '2021-03-dodo_flashloan_exp',
+      },
+    ],
+    detect: [{ kind: 'absence', pattern: 'NO_CALLBACK', appliesTo: MORPHO }],
+    remediation:
+      'Pass empty bytes. If you must implement a callback, require msg.sender == address(MORPHO) and assert the transaction was self-initiated.',
+  },
+  {
+    id: FINDING_IDS.MORPHO_ASSETS_SHARES_EXCLUSIVE,
+    title: 'Morpho assets/shares not mutually exclusive',
+    severity: 'high',
+    vulnClasses: ['vuln/input-validation/missing-validation', 'vuln/logic/rounding'],
+    summary:
+      'supply/withdraw take BOTH an assets and a shares argument, and exactly one must be zero.',
+    detail:
+      'Setting both, or neither, reverts with "inconsistent input" - verified against Morpho ErrorsLib. Which one you pass also decides the rounding direction: supplying by assets converts to shares rounding DOWN, so withdrawing that same asset figure converts back rounding UP and asks for more shares than the position holds. That underflows inside Morpho rather than in your contract, which is why it survives a unit-test suite built on mocks.',
+    incidents: [
+      { name: 'Morpho Blue ErrorsLib.INCONSISTENT_INPUT', url: 'https://docs.morpho.org/' },
+    ],
+    detect: [{ kind: 'absence', pattern: 'SHARES_UNSET', appliesTo: MORPHO }],
+    remediation:
+      'Name the zero argument (a SHARES_UNSET constant) so the intent is visible at every call site, and credit the position delta you measure rather than the amount you requested.',
+  },
+  {
+    id: FINDING_IDS.MORPHO_MARKET_PARAMS_UNPINNED,
+    title: 'Market parameters not pinned at construction',
+    severity: 'high',
+    vulnClasses: ['vuln/access-control/missing-auth', 'vuln/input-validation/missing-validation'],
+    summary:
+      'A Morpho market IS the hash of its five parameters, so accepting them per call lets a caller repoint the vault.',
+    detail:
+      'Morpho identifies a market by keccak(loanToken, collateralToken, oracle, irm, lltv). A vault that takes those per call can be aimed at a market with a different oracle or a different LLTV while every function signature stays identical - the depositor sees no change. Pinning them as immutables makes the market fixed for the vault lifetime.',
+    incidents: [{ name: 'Morpho Blue MarketParamsLib', url: 'https://docs.morpho.org/' }],
+    detect: [{ kind: 'absence', pattern: 'immutable LLTV', appliesTo: MORPHO }],
+    remediation:
+      'Take the five fields as constructor arguments, store them as immutables, and expose marketParams() as a view that rebuilds the struct.',
   },
 ];
 

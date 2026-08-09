@@ -2,6 +2,7 @@ import type { ContractBuilder } from '@openzeppelin/wizard';
 
 import { buildFlashLoanReceiver, printFlashLoanReceiver } from '@/generator/aave/flashLoanReceiver';
 import { buildErc4626Vault, printErc4626Vault } from '@/generator/aave/erc4626Vault';
+import { buildMorphoVault, printMorphoVault } from '@/generator/aave/morphoVault';
 import type { FindingId, GenerateOptions, Preset } from '@/types';
 
 /**
@@ -18,6 +19,8 @@ export function buildPreset(opts: GenerateOptions): {
       return buildFlashLoanReceiver(opts);
     case 'aave-v3-erc4626-vault':
       return buildErc4626Vault(opts);
+    case 'morpho-blue-vault':
+      return buildMorphoVault(opts);
   }
 }
 
@@ -27,12 +30,15 @@ export function printPreset(opts: GenerateOptions): string {
       return printFlashLoanReceiver(opts);
     case 'aave-v3-erc4626-vault':
       return printErc4626Vault(opts);
+    case 'morpho-blue-vault':
+      return printMorphoVault(opts);
   }
 }
 
 export const PRESET_LABELS: Record<Preset, string> = {
   'aave-v3-flashloan-receiver': 'Aave V3 Flash Loan Receiver',
   'aave-v3-erc4626-vault': 'Aave V3 ERC-4626 Vault',
+  'morpho-blue-vault': 'Morpho Blue Vault',
 };
 
 export const PRESET_BLURBS: Record<Preset, string> = {
@@ -40,6 +46,8 @@ export const PRESET_BLURBS: Record<Preset, string> = {
     'Callback gated to the Pool and to self-initiated loans. The bug that drained DODO and Mimo.',
   'aave-v3-erc4626-vault':
     'Share price from internal accounting, not a donatable aToken balance. The PoolTogether bug.',
+  'morpho-blue-vault':
+    'Market pinned at construction, no callback surface, and assets/shares kept mutually exclusive.',
 };
 
 /** Defaults that produce a good-looking contract with one click. §A8: never type on stage. */
@@ -62,6 +70,19 @@ export const PRESET_DEFAULTS: Record<Preset, GenerateOptions> = {
     asset: '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48',
     routerAllowlist: false,
     claimRewards: true,
+    sweepEscapeHatch: true,
+    depositCap: '10000000000000',
+    feeBps: 200,
+    decimalsOffset: 6,
+  },
+  'morpho-blue-vault': {
+    preset: 'morpho-blue-vault',
+    name: 'MyMorphoVault',
+    access: 'ownable',
+    pausable: true,
+    asset: '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48',
+    routerAllowlist: false,
+    claimRewards: false,
     sweepEscapeHatch: true,
     depositCap: '10000000000000',
     feeBps: 200,

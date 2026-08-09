@@ -5,7 +5,12 @@ import {
   type AttackSnippetFile,
 } from '@/generator/attacks/assembleAttackTests';
 import snippets from '@/generated/attack-snippets.json';
-import { REMAPPINGS, type GenerateOptions, type GeneratedProject, type Preset } from '@/types';
+import {
+  PRESET_LIST,
+  REMAPPINGS,
+  type GenerateOptions,
+  type GeneratedProject,
+} from '@/types';
 
 /**
  * Generation over HTTP.
@@ -18,7 +23,6 @@ import { REMAPPINGS, type GenerateOptions, type GeneratedProject, type Preset } 
 export const runtime = 'nodejs';
 
 const SNIPPETS = snippets as unknown as AttackSnippetFile;
-const PRESETS: Preset[] = ['aave-v3-flashloan-receiver', 'aave-v3-erc4626-vault'];
 
 export async function POST(req: Request): Promise<Response> {
   let body: Partial<GenerateOptions>;
@@ -28,8 +32,8 @@ export async function POST(req: Request): Promise<Response> {
     return json({ error: 'Malformed JSON body' }, 400);
   }
 
-  if (!body.preset || !PRESETS.includes(body.preset)) {
-    return json({ error: `preset must be one of: ${PRESETS.join(', ')}` }, 400);
+  if (!body.preset || !PRESET_LIST.includes(body.preset)) {
+    return json({ error: `preset must be one of: ${PRESET_LIST.join(', ')}` }, 400);
   }
 
   // Defaults fill the gaps so a caller can send just {preset} and get something

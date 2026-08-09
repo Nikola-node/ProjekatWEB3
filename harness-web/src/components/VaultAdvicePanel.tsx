@@ -1,11 +1,18 @@
 'use client';
 
-import type { SettingAdvice, VaultAnalysis, Verdict } from '@/lib/vaultAdvice';
+import type { SettingAdvice, SettingSweep, VaultAnalysis, Verdict } from '@/lib/vaultAdvice';
 
 const TONE: Record<Verdict, { fg: string; bg: string; word: string }> = {
   ok: { fg: 'var(--green-2)', bg: 'var(--green-1)', word: 'Sensible' },
   warn: { fg: '#9a4a06', bg: 'var(--amber-1)', word: 'Reconsider' },
   bad: { fg: 'var(--red-3)', bg: 'var(--red-1)', word: 'Change this' },
+};
+
+/** Solid fills for the sweep strip — the tint backgrounds are too pale at this size. */
+const SWEEP_FILL: Record<Verdict, string> = {
+  ok: 'var(--green-2)',
+  warn: '#c9822f',
+  bad: 'var(--red-2)',
 };
 
 export default function VaultAdvicePanel({
@@ -78,6 +85,8 @@ export default function VaultAdvicePanel({
 
               <p className="mt-2 text-[14px] leading-relaxed text-[var(--text-muted)]">{a.detail}</p>
 
+              {sweepFor(analysis, a.setting) && <Sweep sweep={sweepFor(analysis, a.setting)!} />}
+
               <div className="mt-2.5 flex flex-wrap items-center gap-2 text-[13px]">
                 <span className="text-[var(--text-faint)]">now</span>
                 <code className="rounded bg-[var(--card-2)] px-1.5 py-0.5 font-mono">
@@ -100,6 +109,40 @@ export default function VaultAdvicePanel({
         })}
       </div>
     </aside>
+  );
+}
+
+const sweepFor = (a: VaultAnalysis, setting: SettingAdvice['setting']) =>
+  a.sweeps?.find((s) => s.setting === setting);
+
+/**
+ * The frontier, not a point judgement: every value the advisor was asked about,
+ * coloured by its verdict, with your current value marked. Shows *where* a
+ * setting stops being sensible rather than only that this one isn't.
+ */
+function Sweep({ sweep }: { sweep: SettingSweep }) {
+  return (
+    <div className="mt-3">
+      <div className="flex gap-[2px]" role="img" aria-label={sweep.frontier}>
+        {sweep.points.map((p) => (
+          <div key={p.value} className="flex-1" title={`${p.label} — ${p.verdict}`}>
+            <div
+              className="h-[10px] rounded-[2px]"
+              style={{ background: SWEEP_FILL[p.verdict], opacity: p.current ? 1 : 0.45 }}
+            />
+            {p.current && (
+              <div className="mt-1 text-center text-[10px] leading-none text-[var(--text-faint)]">
+                ▲
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+      <p className="mt-1.5 text-[13px] leading-snug text-[var(--text-muted)]">{sweep.frontier}</p>
+      <p className="mt-0.5 text-[12px] text-[var(--text-faint)]">
+        {sweep.points[0].label} → {sweep.points[sweep.points.length - 1].label} · ▲ is your value
+      </p>
+    </div>
   );
 }
 

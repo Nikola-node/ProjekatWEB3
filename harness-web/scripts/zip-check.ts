@@ -3,6 +3,7 @@ import path from 'node:path';
 import { buildProjectZip, remixUrl } from '../src/lib/exportProject';
 import { buildPreset, printPreset, PRESET_DEFAULTS } from '../src/generator';
 import type { AttackSnippetFile } from '../src/generator/attacks/assembleAttackTests';
+import { PRESET_LIST } from '../src/types';
 
 const snippets: AttackSnippetFile = JSON.parse(
   fs.readFileSync(path.join(__dirname, '../../fixtures/attack-snippets.json'), 'utf8'),
@@ -10,7 +11,7 @@ const snippets: AttackSnippetFile = JSON.parse(
 const out = process.argv[2];
 
 (async () => {
-  for (const preset of ['aave-v3-flashloan-receiver', 'aave-v3-erc4626-vault'] as const) {
+  for (const preset of PRESET_LIST) {
     const opts = PRESET_DEFAULTS[preset];
     const applied = buildPreset(opts).appliedFindingIds;
     const blob = await buildProjectZip(opts, snippets, applied);
