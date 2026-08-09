@@ -30,6 +30,39 @@ export interface SettingSweep {
   frontier: string;
 }
 
+/**
+ * A two-axis stress grid: one setting against one market condition.
+ *
+ * The 1-D sweeps hold the market fixed at what it is right now, which answers
+ * "is this value sensible today" but not "does it stay sensible". Utilisation is
+ * the condition worth varying: it is the one that moves fastest, it is not under
+ * the vault's control, and it is what decides whether a withdrawal can actually
+ * be paid out.
+ *
+ * Deliberately not setting-against-setting. The deposit cap and the virtual-share
+ * offset look like they should interact, but they do not: the inflation attack
+ * targets the first depositor into an empty vault, and the attacker's cost is
+ * 10^offset times what they hope to capture regardless of where the cap sits. A
+ * grid over those two would be flat along one axis and would imply a relationship
+ * the model does not have.
+ */
+export interface StressCell {
+  verdict: Verdict;
+  /** True for the cell nearest the vault's configured cap at today's utilisation. */
+  current?: boolean;
+}
+
+export interface StressGrid {
+  setting: SettingAdvice['setting'];
+  title: string;
+  rowLabel: string;
+  colLabel: string;
+  cols: { label: string; value: number }[];
+  rows: { label: string; value: number; cells: StressCell[] }[];
+  /** Prose naming the utilisation at which the configured cap stops holding. */
+  summary: string;
+}
+
 export interface VaultAnalysis {
   asset: { address: string; symbol: string; decimals: number };
   market: {
@@ -52,6 +85,7 @@ export interface VaultAnalysis {
   };
   advice: SettingAdvice[];
   sweeps: SettingSweep[];
+  stress: StressGrid;
 }
 
 export async function analyzeVault(opts: GenerateOptions): Promise<VaultAnalysis> {

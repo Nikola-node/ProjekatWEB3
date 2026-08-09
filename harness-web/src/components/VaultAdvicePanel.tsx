@@ -1,6 +1,8 @@
 'use client';
 
-import type { SettingAdvice, SettingSweep, VaultAnalysis, Verdict } from '@/lib/vaultAdvice';
+import { Fragment } from 'react';
+
+import type { SettingAdvice, SettingSweep, StressGrid, VaultAnalysis, Verdict } from '@/lib/vaultAdvice';
 
 const TONE: Record<Verdict, { fg: string; bg: string; word: string }> = {
   ok: { fg: 'var(--green-2)', bg: 'var(--green-1)', word: 'Sensible' },
@@ -91,6 +93,7 @@ export default function VaultAdvicePanel({
               <p className="mt-2 text-[14px] leading-relaxed text-[var(--text-muted)]">{a.detail}</p>
 
               {sweepFor(analysis, a.setting) && <Sweep sweep={sweepFor(analysis, a.setting)!} />}
+              {analysis.stress?.setting === a.setting && <Stress grid={analysis.stress} />}
 
               <div className="mt-2.5 flex flex-wrap items-center gap-2 text-[13px]">
                 <span className="text-[var(--text-faint)]">now</span>
@@ -146,6 +149,62 @@ function Sweep({ sweep }: { sweep: SettingSweep }) {
       <p className="mt-1.5 text-[13px] leading-snug text-[var(--text-muted)]">{sweep.frontier}</p>
       <p className="mt-0.5 text-[12px] text-[var(--text-faint)]">
         {sweep.points[0].label} → {sweep.points[sweep.points.length - 1].label} · ▲ is your value
+      </p>
+    </div>
+  );
+}
+
+/**
+ * The setting against a market condition it does not control.
+ *
+ * The strip above answers "is this value sensible today". This answers "how far
+ * can the market move before it stops being sensible" — which is the question
+ * that matters, because utilisation is set by borrowers rather than by the vault.
+ */
+function Stress({ grid }: { grid: StressGrid }) {
+  return (
+    <div className="mt-3">
+      <p className="section-title mb-1.5">{grid.title}</p>
+
+      <div
+        className="grid gap-[2px]"
+        style={{ gridTemplateColumns: `36px repeat(${grid.cols.length}, 1fr)` }}
+      >
+        <div />
+        {grid.cols.map((c) => (
+          <div
+            key={c.label}
+            className="pb-0.5 text-center text-[10px] leading-none text-[var(--text-faint)]"
+          >
+            {c.label}
+          </div>
+        ))}
+
+        {grid.rows.map((r) => (
+          <Fragment key={r.value}>
+            <div className="pr-1.5 text-right font-mono text-[10px] leading-[14px] text-[var(--text-faint)]">
+              {r.label}
+            </div>
+            {r.cells.map((cell, i) => (
+              <div
+                key={grid.cols[i].label}
+                title={`${grid.rowLabel} ${r.label} at ${grid.cols[i].label} ${grid.colLabel.toLowerCase()} — ${cell.verdict}`}
+                className="h-[14px] rounded-[2px]"
+                style={{
+                  background: SWEEP_FILL[cell.verdict],
+                  opacity: cell.current ? 1 : 0.42,
+                  boxShadow: cell.current ? '0 0 0 1.5px var(--text-color)' : undefined,
+                }}
+              />
+            ))}
+          </Fragment>
+        ))}
+      </div>
+
+      <p className="mt-2 text-[13px] leading-snug text-[var(--text-muted)]">{grid.summary}</p>
+      <p className="mt-0.5 text-[12px] text-[var(--text-faint)]">
+        rows {grid.rowLabel.toLowerCase()} · columns {grid.colLabel.toLowerCase()} · outlined cell is
+        where you are now
       </p>
     </div>
   );

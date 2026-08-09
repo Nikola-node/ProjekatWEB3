@@ -2,7 +2,15 @@ import { createPublicClient, http, formatUnits } from 'viem';
 
 import { MORPHO_MAINNET } from '@/generator/attacks/addresses';
 import { ADDRESS_RE, type GenerateOptions } from '@/types';
-import type { SettingAdvice, SettingSweep, SweepPoint, VaultAnalysis, Verdict } from '@/lib/vaultAdvice';
+import type {
+  SettingAdvice,
+  SettingSweep,
+  StressCell,
+  StressGrid,
+  SweepPoint,
+  VaultAnalysis,
+  Verdict,
+} from '@/lib/vaultAdvice';
 
 /**
  * Vault settings advisor.
@@ -47,6 +55,8 @@ interface MarketSnapshot {
   availableLiquidity: number;
   supplyCap: number | null;
   headroom: number | null;
+  /** Borrowed / supplied, right now. The axis the stress grid moves. */
+  utilization: number;
   supplyApyPct: number;
   protocolFeePct: number;
   protocolFeeLabel: string;
@@ -116,6 +126,7 @@ export async function POST(req: Request): Promise<Response> {
     },
     advice,
     sweeps,
+    stress: stressDepositCap(opts, snap),
   };
 
   return json(analysis, 200);
@@ -221,6 +232,7 @@ async function readAaveMarket(client: Client, asset: `0x${string}`): Promise<Mar
     availableLiquidity: Math.max(supplied - variableDebt, 0),
     supplyCap,
     headroom: Math.max(supplyCap - supplied, 0),
+    utilization: supplied === 0 ? 0 : variableDebt / supplied,
     supplyApyPct: (Number(rd[5]) / 1e27) * 100,
     protocolFeePct: Number(cfg[4]) / 100,
     protocolFeeLabel: 'Reserve factor',
@@ -365,6 +377,7 @@ async function readMorphoMarket(client: Client, asset: `0x${string}`): Promise<M
     // Not a large cap — no cap. Morpho Blue markets are uncapped by design.
     supplyCap: null,
     headroom: null,
+    utilization,
     supplyApyPct,
     protocolFeePct: feePct * 100,
     protocolFeeLabel: 'Market fee',
@@ -620,4 +633,117 @@ function markNearest(points: SweepPoint[], current: number): void {
     if (Math.abs(points[i].value - current) < Math.abs(points[best].value - current)) best = i;
   }
   points[best].current = true;
+}
+
+// ---------------------------------------------------------------------------
+// Stress grid: the deposit cap against a market condition it does not control.
+// ---------------------------------------------------------------------------
+
+const COLS = 5;
+const ROWS = 6;
+/** Past this the market is effectively fully lent out; further precision is noise. */
+const MAX_UTILIZATION = 0.995;
+
+const compact = (n: number): string => {
+  if (n >= 1e9) return `${(n / 1e9).toFixed(1)}B`;
+  if (n >= 1e6) return `${Math.round(n / 1e6)}M`;
+  if (n >= 1e3) return `${Math.round(n / 1e3)}K`;
+  return `${Math.round(n)}`;
+};
+
+/**
+ * Re-runs the deposit-cap advice across a grid of caps and utilisations.
+ *
+ * Utilisation is a fact about the market, not a vault setting, which is exactly
+ * why it belongs on the second axis: the vault cannot choose it, borrowers move
+ * it, and it decides whether a withdrawal can be paid at all. Supplied stays
+ * constant as utilisation rises — more borrowing, not more supply — so the
+ * headroom under a supply cap is unchanged and only liquidity moves. That is the
+ * whole point: on Aave the cap can look safe against headroom and still fail
+ * against liquidity, and on Morpho liquidity is the only ceiling there is.
+ */
+function stressDepositCap(opts: GenerateOptions, snap: MarketSnapshot): StressGrid {
+  const startU = Math.min(snap.utilization, MAX_UTILIZATION);
+  const span = MAX_UTILIZATION - startU;
+  const cols = Array.from({ length: COLS }, (_, i) => {
+    const value = startU + (span / (COLS - 1)) * i;
+    // 99.5% must not render as "100%" — a fully lent market and a nearly fully
+    // lent one are different claims, and the second one is the one being made.
+    const pct = value * 100;
+    return { label: `${pct >= 99 ? pct.toFixed(1) : pct.toFixed(0)}%`, value };
+  });
+
+  const currentCap = opts.depositCap ? Number(opts.depositCap) / 10 ** snap.decimals : null;
+
+  // Anchored on the configured cap, not on the market ceiling. A linear ladder up
+  // to the ceiling puts its lowest rung above any modest cap — on Aave USDC that
+  // meant a 20M cap sat below the 86M bottom row and the grid never showed it.
+  // Multiples of the cap always contain the value being asked about, and answer
+  // the follow-up question too: what happens if I raise or lower it.
+  const rowValues =
+    currentCap !== null && currentCap > 0
+      ? [0.25, 0.5, 1, 2, 4, 8].map((m) => Math.round(currentCap * m))
+      : Array.from({ length: ROWS }, (_, i) =>
+          Math.round((Math.max((snap.headroom ?? snap.availableLiquidity) * 1.5, 1) / ROWS) * (i + 1)),
+        );
+  // The cap is row index 2 by construction of the multiplier ladder.
+  const nearestRow = currentCap === null ? -1 : nearestIndex(rowValues, currentCap);
+
+  const rows = rowValues.map((value, r) => {
+    const probe = { ...opts, depositCap: `${value}${'0'.repeat(snap.decimals)}` };
+    const cells: StressCell[] = cols.map((c, i) => ({
+      verdict: adviseDepositCap(probe, atUtilization(snap, c.value)).verdict,
+      // Today's utilisation is the leftmost column by construction.
+      current: r === nearestRow && i === 0 ? true : undefined,
+    }));
+    return { label: compact(value), value, cells };
+  });
+
+  return {
+    setting: 'depositCap',
+    title: 'Deposit cap under market stress',
+    rowLabel: 'Deposit cap',
+    colLabel: 'Utilisation',
+    cols,
+    rows,
+    summary: stressSummary(opts, snap, cols),
+  };
+}
+
+/**
+ * The same market with borrowing dialled up. Supplied is unchanged, so headroom
+ * is unchanged and only free liquidity moves — which is what utilisation means.
+ */
+function atUtilization(snap: MarketSnapshot, u: number): MarketSnapshot {
+  return { ...snap, utilization: u, availableLiquidity: Math.max(snap.supplied * (1 - u), 0) };
+}
+
+/** Names the utilisation at which the configured cap stops being payable. */
+function stressSummary(
+  opts: GenerateOptions,
+  snap: MarketSnapshot,
+  cols: { label: string; value: number }[],
+): string {
+  if (!opts.depositCap) {
+    return 'Set a deposit cap to see how far the market can move before it stops holding.';
+  }
+
+  const verdicts = cols.map((c) => adviseDepositCap(opts, atUtilization(snap, c.value)).verdict);
+  const firstBad = verdicts.findIndex((v) => v !== 'ok');
+
+  if (firstBad === -1) {
+    return `This cap still holds at ${cols[cols.length - 1].label} utilisation, so the market would have to be lent out almost entirely before withdrawals were affected.`;
+  }
+  if (firstBad === 0) {
+    return `This cap does not hold even at today's ${cols[0].label} utilisation — the market cannot release that much right now.`;
+  }
+  return `Holds up to roughly ${cols[firstBad - 1].label} utilisation; it is currently ${(snap.utilization * 100).toFixed(0)}%. Borrowers move this, not you.`;
+}
+
+function nearestIndex(values: number[], target: number): number {
+  let best = 0;
+  for (let i = 1; i < values.length; i++) {
+    if (Math.abs(values[i] - target) < Math.abs(values[best] - target)) best = i;
+  }
+  return best;
 }
