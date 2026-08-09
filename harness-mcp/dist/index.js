@@ -19,7 +19,14 @@ import { z } from 'zod';
  * from what the site serves.
  */
 const API_BASE = (process.env.HARNESS_API_BASE ?? 'https://harness-web-livid.vercel.app').replace(/\/$/, '');
-const PRESETS = ['aave-v3-flashloan-receiver', 'aave-v3-erc4626-vault'];
+// Kept in step with PRESET_LIST in harness-web/src/types.ts. This package does not
+// share that module, so the API validates the preset too — a stale copy here is a
+// bad error message, never an accepted request for a preset the server rejects.
+const PRESETS = [
+    'aave-v3-flashloan-receiver',
+    'aave-v3-erc4626-vault',
+    'morpho-blue-vault',
+];
 async function callApi(path, body) {
     const res = await fetch(`${API_BASE}${path}`, {
         method: 'POST',
@@ -127,12 +134,19 @@ server.registerTool('harness_generate', {
     ].join('\n'));
 });
 server.registerTool('harness_vault_settings', {
-    title: 'Check vault settings against live Aave',
+    title: 'Check vault settings against a live lending market',
     description: "Judge an ERC-4626 vault's deposit cap, performance fee and virtual-share offset " +
-        "against Aave's live reserve state, and sweep neighbouring values to show where " +
-        'each verdict flips. Use this before committing to vault parameters — the correct ' +
-        'values depend on current market headroom, liquidity and APY, not on taste.',
+        "against a lending market's live state, sweep neighbouring values to show where " +
+        'each verdict flips, and stress the deposit cap against rising utilisation. Use ' +
+        'this before committing to vault parameters — the correct values depend on current ' +
+        'market headroom, liquidity and APY, not on taste. Supports both Aave v3 and ' +
+        'Morpho Blue, which answer differently: Morpho has no supply cap at all, so ' +
+        'liquidity is the only ceiling.',
     inputSchema: {
+        preset: z
+            .enum(['aave-v3-erc4626-vault', 'morpho-blue-vault'])
+            .default('aave-v3-erc4626-vault')
+            .describe('Which lending market to judge against.'),
         asset: z
             .string()
             .regex(/^0x[a-fA-F0-9]{40}$/)
@@ -142,12 +156,17 @@ server.registerTool('harness_vault_settings', {
         decimalsOffset: z.number().int().min(0).max(12).optional(),
     },
 }, async (args) => {
-    const r = await callApi('/api/vault-analysis', { preset: 'aave-v3-erc4626-vault', ...args });
+    // The preset was hardcoded here, so asking about Morpho returned Aave's
+    // reserve — the wrong market, rendered confidently. It is a parameter now.
+    const r = await callApi('/api/vault-analysis', args);
     const m = r.market;
     const lines = [
-        `Aave right now — supply cap ${m.supplyCap}, supplied ${m.supplied}, headroom ${m.headroom}, ` +
-            `available liquidity ${m.availableLiquidity}, supply APY ${Number(m.supplyApyPct).toFixed(2)}%, ` +
-            `reserve factor ${m.reserveFactorPct}%.`,
+        `${m.protocol} right now — supply cap ${m.supplyCap}, supplied ${m.supplied}, ` +
+            `headroom ${m.headroom}, available liquidity ${m.availableLiquidity}, ` +
+            `supply APY ${Number(m.supplyApyPct).toFixed(2)}%, ` +
+            `${m.protocolFeeLabel.toLowerCase()} ${m.protocolFeePct.toFixed(0)}%` +
+            (m.extra.length ? `, ${m.extra.map((e) => `${e.label.toLowerCase()} ${e.value}`).join(', ')}` : '') +
+            '.',
         '',
     ];
     for (const a of r.advice) {
@@ -159,6 +178,8 @@ server.registerTool('harness_vault_settings', {
     lines.push('', 'Where each verdict flips:');
     for (const s of r.sweeps)
         lines.push(`  ${s.label}: ${s.frontier}`);
+    if (r.stress)
+        lines.push('', `${r.stress.title}: ${r.stress.summary}`);
     return text(lines.join('\n'));
 });
 await server.connect(new StdioServerTransport());

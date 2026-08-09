@@ -187,13 +187,20 @@ server.registerTool(
 server.registerTool(
   'harness_vault_settings',
   {
-    title: 'Check vault settings against live Aave',
+    title: 'Check vault settings against a live lending market',
     description:
       "Judge an ERC-4626 vault's deposit cap, performance fee and virtual-share offset " +
-      "against Aave's live reserve state, and sweep neighbouring values to show where " +
-      'each verdict flips. Use this before committing to vault parameters — the correct ' +
-      'values depend on current market headroom, liquidity and APY, not on taste.',
+      "against a lending market's live state, sweep neighbouring values to show where " +
+      'each verdict flips, and stress the deposit cap against rising utilisation. Use ' +
+      'this before committing to vault parameters — the correct values depend on current ' +
+      'market headroom, liquidity and APY, not on taste. Supports both Aave v3 and ' +
+      'Morpho Blue, which answer differently: Morpho has no supply cap at all, so ' +
+      'liquidity is the only ceiling.',
     inputSchema: {
+      preset: z
+        .enum(['aave-v3-erc4626-vault', 'morpho-blue-vault'])
+        .default('aave-v3-erc4626-vault')
+        .describe('Which lending market to judge against.'),
       asset: z
         .string()
         .regex(/^0x[a-fA-F0-9]{40}$/)
@@ -217,17 +224,34 @@ server.registerTool(
       frontier: string;
       points: { label: string; verdict: string; current?: boolean }[];
     };
+    type Market = {
+      protocol: string;
+      supplyCap: string;
+      supplied: string;
+      headroom: string;
+      availableLiquidity: string;
+      supplyApyPct: number;
+      protocolFeePct: number;
+      protocolFeeLabel: string;
+      extra: { label: string; value: string }[];
+    };
+    // The preset was hardcoded here, so asking about Morpho returned Aave's
+    // reserve — the wrong market, rendered confidently. It is a parameter now.
     const r = await callApi<{
-      market: Record<string, string | number | boolean>;
+      market: Market;
       advice: Advice[];
       sweeps: Sweep[];
-    }>('/api/vault-analysis', { preset: 'aave-v3-erc4626-vault', ...args });
+      stress?: { title: string; summary: string };
+    }>('/api/vault-analysis', args);
 
     const m = r.market;
     const lines = [
-      `Aave right now — supply cap ${m.supplyCap}, supplied ${m.supplied}, headroom ${m.headroom}, ` +
-        `available liquidity ${m.availableLiquidity}, supply APY ${Number(m.supplyApyPct).toFixed(2)}%, ` +
-        `reserve factor ${m.reserveFactorPct}%.`,
+      `${m.protocol} right now — supply cap ${m.supplyCap}, supplied ${m.supplied}, ` +
+        `headroom ${m.headroom}, available liquidity ${m.availableLiquidity}, ` +
+        `supply APY ${Number(m.supplyApyPct).toFixed(2)}%, ` +
+        `${m.protocolFeeLabel.toLowerCase()} ${m.protocolFeePct.toFixed(0)}%` +
+        (m.extra.length ? `, ${m.extra.map((e) => `${e.label.toLowerCase()} ${e.value}`).join(', ')}` : '') +
+        '.',
       '',
     ];
     for (const a of r.advice) {
@@ -240,6 +264,7 @@ server.registerTool(
     }
     lines.push('', 'Where each verdict flips:');
     for (const s of r.sweeps) lines.push(`  ${s.label}: ${s.frontier}`);
+    if (r.stress) lines.push('', `${r.stress.title}: ${r.stress.summary}`);
 
     return text(lines.join('\n'));
   },
